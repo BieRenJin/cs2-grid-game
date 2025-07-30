@@ -1,0 +1,18 @@
+{
+  "name": "cs2-grid-game",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": ["cs2", "game", "slot", "grid"],
+  "author": "",
+  "license": "ISC",
+  "description": "CS2-themed 7x7 grid slot game with cluster pays",
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS2 Grid Battle</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div id="game-container">
+        <div class="game-header">
+            <h1>CS2 Grid Battle</h1>
+            <div class="game-stats">
+                <div class="balance">Balance: <span id="balance">1000.00</span></div>
+                <div class="bet-amount">Bet: <span id="bet-amount">1.00</span></div>
+                <div class="win-amount">Win: <span id="win-amount">0.00</span></div>
+            </div>
+        </div>
+        
+        <div class="game-grid" id="game-grid">
+            <!-- 7x7 grid will be generated here -->
+        </div>
+        
+        <div class="game-controls">
+            <div class="bet-controls">
+                <button id="bet-decrease">-</button>
+                <input type="number" id="bet-input" value="1.00" min="0.10" max="1000.00" step="0.10">
+                <button id="bet-increase">+</button>
+            </div>
+            
+            <button id="spin-button" class="spin-button">SPIN</button>
+            
+            <div class="bonus-buy-container">
+                <button id="bonus-buy" class="bonus-buy-button">Buy Bonus</button>
+            </div>
+        </div>
+        
+        <div class="paytable-toggle">
+            <button id="toggle-paytable">Paytable</button>
+            <small style="display: block; margin-top: 10px; color: #888; text-align: center;">
+                Press Ctrl+R for RTP Statistics
+            </small>
+        </div>
+        
+        <div id="paytable-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>CS2 Grid Battle Paytable</h2>
+                <div id="paytable-content"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

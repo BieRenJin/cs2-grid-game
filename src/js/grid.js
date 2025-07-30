@@ -1,0 +1,244 @@
+import { getRandomSymbol, SPECIAL_SYMBOLS } from './symbols.js';
+import { SpecialSymbolHandler } from './specialSymbols.js';
+
+export class GameGrid {
+    constructor(size = 7) {
+        this.size = size;
+        this.grid = [];
+        this.specialHandler = new SpecialSymbolHandler(this);
+        this.initGrid();
+    }
+    
+    initGrid() {
+        const gridElement = document.getElementById('game-grid');
+        gridElement.innerHTML = '';
+        this.grid = [];
+        
+        for (let row = 0; row < this.size; row++) {
+            this.grid[row] = [];
+            for (let col = 0; col < this.size; col++) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.dataset.row = row;
+                cell.dataset.col = col;
+                gridElement.appendChild(cell);
+                
+                const symbol = getRandomSymbol();
+                this.grid[row][col] = symbol;
+                this.updateCell(row, col, symbol);
+            }
+        }
+    }
+    
+    updateCell(row, col, symbol) {
+        const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        if (cell) {
+            cell.textContent = symbol.icon;
+            cell.style.backgroundColor = symbol.color + '33'; // Add transparency
+            cell.dataset.symbolId = symbol.id;
+            
+            // Add special styling for special symbols
+            cell.classList.remove('special-symbol', 'wild-symbol');
+            if (Object.values(SPECIAL_SYMBOLS).some(s => s.id === symbol.id)) {
+                cell.classList.add('special-symbol');
+            }
+            if (symbol.isWild) {
+                cell.classList.add('wild-symbol');
+            }
+        }
+    }
+    
+    spin() {
+        // Animate the spin
+        const cells = document.querySelectorAll('.grid-cell');
+        const specialSymbolPositions = [];
+        
+        cells.forEach((cell, index) => {
+            setTimeout(() => {
+                cell.style.transform = 'rotateY(360deg)';
+                setTimeout(() => {
+                    const row = Math.floor(index / this.size);
+                    const col = index % this.size;
+                    
+                    // Check if special symbol should appear
+                    let newSymbol;
+                    
+                    // Check for boost features
+                    const game = window.game; // Access game instance
+                    let scatterChance = 0.005; // Base 0.5% chance
+                    
+                    if (game && game.bonusBoostActive) {
+                        scatterChance *= 2; // Double chance
+                    }
+                    if (game && game.superBoostActive) {
+                        scatterChance = 0.05; // Guaranteed 1 in 20
+                    }
+                    
+                    // Include scatter in symbol generation during boosts or free spins
+                    const includeScatter = Math.random() < scatterChance || (game && game.freeSpinsRemaining > 0);
+                    
+                    if (this.specialHandler.shouldAppearSpecialSymbol()) {
+                        newSymbol = this.specialHandler.getRandomSpecialSymbol();
+                        specialSymbolPositions.push({row, col, symbol: newSymbol});
+                    } else {
+                        newSymbol = getRandomSymbol(includeScatter);
+                        if (newSymbol.id === 'scatter') {
+                            specialSymbolPositions.push({row, col, symbol: newSymbol});
+                        }
+                    }
+                    
+                    this.grid[row][col] = newSymbol;
+                    this.updateCell(row, col, newSymbol);
+                    cell.style.transform = 'rotateY(0deg)';
+                }, 250);
+            }, index * 20);
+        });
+        
+        // Check for wins after animation completes
+        setTimeout(() => {
+            // Apply special symbol effects
+            this.applySpecialSymbolEffects(specialSymbolPositions);
+            
+            const clusters = this.findClusters();
+            return clusters;
+        }, cells.length * 20 + 500);
+    }
+    
+    findClusters() {
+        const visited = Array(this.size).fill(null).map(() => Array(this.size).fill(false));
+        const clusters = [];
+        
+        for (let row = 0; row < this.size; row++) {
+            for (let col = 0; col < this.size; col++) {
+                if (!visited[row][col]) {
+                    const cluster = this.dfs(row, col, this.grid[row][col].id, visited);
+                    if (cluster.length >= 5) {
+                        clusters.push({
+                            symbol: this.grid[row][col],
+                            positions: cluster,
+                            size: cluster.length
+                        });
+                    }
+                }
+            }
+        }
+        
+        return clusters;
+    }
+    
+    dfs(row, col, symbolId, visited) {
+        if (row < 0 || row >= this.size || col < 0 || col >= this.size ||
+            visited[row][col] || this.grid[row][col].id !== symbolId) {
+            return [];
+        }
+        
+        visited[row][col] = true;
+        const positions = [{row, col}];
+        
+        // Check all 4 directions
+        const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+        for (const [dr, dc] of directions) {
+            positions.push(...this.dfs(row + dr, col + dc, symbolId, visited));
+        }
+        
+        return positions;
+    }
+    
+    highlightWinningClusters(clusters) {
+        // Clear previous highlights
+        document.querySelectorAll('.grid-cell.winning').forEach(cell => {
+            cell.classList.remove('winning');
+        });
+        
+        // Highlight winning clusters
+        clusters.forEach(cluster => {
+            cluster.positions.forEach(({row, col}) => {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (cell) {
+                    cell.classList.add('winning');
+                }
+            });
+        });
+    }
+    
+    removeWinningSymbols(clusters) {
+        // Remove winning symbols and let new ones cascade down
+        const columnsToFill = new Set();
+        
+        clusters.forEach(cluster => {
+            cluster.positions.forEach(({row, col}) => {
+                this.grid[row][col] = null;
+                columnsToFill.add(col);
+            });
+        });
+        
+        // Cascade symbols down
+        columnsToFill.forEach(col => {
+            this.cascadeColumn(col);
+        });
+    }
+    
+    cascadeColumn(col) {
+        // Move existing symbols down
+        let writePos = this.size - 1;
+        for (let row = this.size - 1; row >= 0; row--) {
+            if (this.grid[row][col] !== null) {
+                if (row !== writePos) {
+                    this.grid[writePos][col] = this.grid[row][col];
+                    this.grid[row][col] = null;
+                }
+                writePos--;
+            }
+        }
+        
+        // Fill empty spaces with new symbols
+        for (let row = writePos; row >= 0; row--) {
+            this.grid[row][col] = getRandomSymbol();
+        }
+        
+        // Update visual representation
+        for (let row = 0; row < this.size; row++) {
+            this.updateCell(row, col, this.grid[row][col]);
+        }
+    }
+    
+    applySpecialSymbolEffects(specialSymbolPositions) {
+        specialSymbolPositions.forEach(({row, col, symbol}) => {
+            switch(symbol.id) {
+                case 'rush':
+                    this.specialHandler.applyRushEffect({row, col});
+                    break;
+                case 'surge':
+                    this.specialHandler.applySurgeEffect({row, col});
+                    break;
+                case 'slash':
+                    this.specialHandler.applySlashEffect({row, col});
+                    break;
+            }
+        });
+    }
+    
+    // Modified cluster finding to handle wild symbols
+    dfsWithWilds(row, col, symbolId, visited) {
+        if (row < 0 || row >= this.size || col < 0 || col >= this.size ||
+            visited[row][col]) {
+            return [];
+        }
+        
+        const currentSymbol = this.grid[row][col];
+        if (!currentSymbol || (currentSymbol.id !== symbolId && !currentSymbol.isWild)) {
+            return [];
+        }
+        
+        visited[row][col] = true;
+        const positions = [{row, col}];
+        
+        // Check all 4 directions
+        const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+        for (const [dr, dc] of directions) {
+            positions.push(...this.dfsWithWilds(row + dr, col + dc, symbolId, visited));
+        }
+        
+        return positions;
+    }
+}
