@@ -197,7 +197,7 @@ export class CS2GridGame {
                 this.grid.removeWinningSymbols(clusters);
                 setTimeout(() => {
                     this.evaluateSpin(); // Check for cascading wins
-                }, 500);
+                }, 800); // Increased delay to allow for cascade animations
             }, 1000);
         } else {
             // No wins, check if scatters triggered free spins

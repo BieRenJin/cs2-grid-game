@@ -162,28 +162,61 @@ export class GameGrid {
     }
     
     removeWinningSymbols(clusters) {
-        // Remove winning symbols and let new ones cascade down
-        const columnsToFill = new Set();
-        
+        // First animate the removal of winning symbols
         clusters.forEach(cluster => {
             cluster.positions.forEach(({row, col}) => {
-                this.grid[row][col] = null;
-                columnsToFill.add(col);
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (cell) {
+                    cell.classList.add('symbol-remove');
+                }
             });
         });
         
-        // Cascade symbols down
-        columnsToFill.forEach(col => {
-            this.cascadeColumn(col);
-        });
+        // After removal animation, clear the symbols and cascade
+        setTimeout(() => {
+            const columnsToFill = new Set();
+            
+            clusters.forEach(cluster => {
+                cluster.positions.forEach(({row, col}) => {
+                    this.grid[row][col] = null;
+                    columnsToFill.add(col);
+                    
+                    // Clear the cell visually
+                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    if (cell) {
+                        cell.textContent = '';
+                        cell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                        cell.classList.remove('symbol-remove', 'winning');
+                    }
+                });
+            });
+            
+            // Cascade symbols down with staggered timing for each column
+            let delay = 0;
+            columnsToFill.forEach(col => {
+                setTimeout(() => {
+                    this.cascadeColumn(col);
+                }, delay);
+                delay += 50; // Stagger columns by 50ms
+            });
+        }, 300); // Wait for removal animation
     }
     
     cascadeColumn(col) {
-        // Move existing symbols down
+        const movements = [];
+        const newSymbols = [];
+        
+        // Track which symbols need to move
         let writePos = this.size - 1;
         for (let row = this.size - 1; row >= 0; row--) {
             if (this.grid[row][col] !== null) {
                 if (row !== writePos) {
+                    movements.push({
+                        symbol: this.grid[row][col],
+                        fromRow: row,
+                        toRow: writePos,
+                        col: col
+                    });
                     this.grid[writePos][col] = this.grid[row][col];
                     this.grid[row][col] = null;
                 }
@@ -193,13 +226,88 @@ export class GameGrid {
         
         // Fill empty spaces with new symbols
         for (let row = writePos; row >= 0; row--) {
-            this.grid[row][col] = getRandomSymbol();
+            const newSymbol = getRandomSymbol();
+            this.grid[row][col] = newSymbol;
+            newSymbols.push({
+                symbol: newSymbol,
+                row: row,
+                col: col,
+                dropDistance: writePos + 1
+            });
         }
         
-        // Update visual representation
-        for (let row = 0; row < this.size; row++) {
-            this.updateCell(row, col, this.grid[row][col]);
-        }
+        // Animate movements
+        this.animateCascade(movements, newSymbols);
+    }
+    
+    animateCascade(movements, newSymbols) {
+        // First, animate existing symbols falling down
+        movements.forEach(({symbol, fromRow, toRow, col}) => {
+            const fromCell = document.querySelector(`[data-row="${fromRow}"][data-col="${col}"]`);
+            const toCell = document.querySelector(`[data-row="${toRow}"][data-col="${col}"]`);
+            
+            if (fromCell && toCell) {
+                // Calculate distance
+                const distance = (toRow - fromRow) * 100;
+                
+                // Clone the symbol for animation
+                const movingSymbol = fromCell.cloneNode(true);
+                movingSymbol.style.position = 'absolute';
+                movingSymbol.style.transition = `transform ${0.3 + (toRow - fromRow) * 0.05}s cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+                movingSymbol.style.zIndex = '100';
+                
+                // Position it at the starting location
+                const fromRect = fromCell.getBoundingClientRect();
+                const containerRect = document.getElementById('game-grid').getBoundingClientRect();
+                movingSymbol.style.left = `${fromRect.left - containerRect.left}px`;
+                movingSymbol.style.top = `${fromRect.top - containerRect.top}px`;
+                movingSymbol.style.width = `${fromRect.width}px`;
+                movingSymbol.style.height = `${fromRect.height}px`;
+                
+                // Add to grid container
+                document.getElementById('game-grid').appendChild(movingSymbol);
+                
+                // Clear original cell
+                fromCell.textContent = '';
+                fromCell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                
+                // Animate to new position
+                setTimeout(() => {
+                    movingSymbol.style.transform = `translateY(${distance}%)`;
+                }, 10);
+                
+                // After animation, update the actual cell and remove the animated element
+                setTimeout(() => {
+                    this.updateCell(toRow, col, symbol);
+                    movingSymbol.remove();
+                }, 300 + (toRow - fromRow) * 50);
+            }
+        });
+        
+        // Then animate new symbols dropping from top
+        setTimeout(() => {
+            newSymbols.forEach(({symbol, row, col, dropDistance}) => {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (cell) {
+                    // Start from above the grid
+                    cell.style.transform = `translateY(-${(dropDistance + 1) * 100}%)`;
+                    cell.style.opacity = '0';
+                    this.updateCell(row, col, symbol);
+                    
+                    // Animate falling in
+                    setTimeout(() => {
+                        cell.style.transition = `transform ${0.4 + dropDistance * 0.05}s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s`;
+                        cell.style.transform = 'translateY(0)';
+                        cell.style.opacity = '1';
+                    }, 50 + row * 30);
+                    
+                    // Reset transition after animation
+                    setTimeout(() => {
+                        cell.style.transition = 'all 0.3s ease';
+                    }, 450 + dropDistance * 50 + row * 30);
+                }
+            });
+        }, movements.length > 0 ? 100 : 0);
     }
     
     applySpecialSymbolEffects(specialSymbolPositions) {
