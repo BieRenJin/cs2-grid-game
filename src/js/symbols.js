@@ -1,7 +1,4 @@
-import { ImageGenerator } from './imageGenerator.js';
-
-// Global image generator instance
-const imageGenerator = new ImageGenerator();
+import { getSymbolDisplay, preloadSymbolImages } from './symbolImages.js';
 
 // CS2-themed symbols configuration
 export const SYMBOLS = {
