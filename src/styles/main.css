@@ -192,7 +192,7 @@ body {
 }
 
 .symbol-remove {
-    animation: symbolRemove 0.3s ease-in;
+    animation: symbolRemove 0.4s ease-in;
 }
 
 .game-controls {

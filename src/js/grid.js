@@ -197,9 +197,9 @@ export class GameGrid {
                 setTimeout(() => {
                     this.cascadeColumn(col);
                 }, delay);
-                delay += 50; // Stagger columns by 50ms
+                delay += 80; // Increased stagger for more dramatic effect
             });
-        }, 300); // Wait for removal animation
+        }, 400); // Wait longer for removal animation
     }
     
     cascadeColumn(col) {
@@ -279,7 +279,7 @@ export class GameGrid {
                 gridElement.appendChild(fallingSymbol);
                 
                 // Apply gravity drop animation
-                const fallDuration = 0.3 + dropRows * 0.08; // Longer fall for greater distance
+                const fallDuration = 0.5 + dropRows * 0.15; // Much longer fall for greater distance
                 setTimeout(() => {
                     fallingSymbol.style.transition = `transform ${fallDuration}s cubic-bezier(0.55, 0, 1, 0.45)`;
                     fallingSymbol.style.transform = `translateY(${dropDistance}px)`;
@@ -293,7 +293,7 @@ export class GameGrid {
                     // Add bounce effect to the cell
                     toCell.style.animation = 'none';
                     setTimeout(() => {
-                        toCell.style.animation = 'bounceIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+                        toCell.style.animation = 'bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
                     }, 10);
                     
                     // Remove falling element
@@ -303,7 +303,7 @@ export class GameGrid {
         });
         
         // Then drop new symbols from above
-        const dropDelay = movements.length > 0 ? 200 : 0;
+        const dropDelay = movements.length > 0 ? 300 : 0; // Increased delay
         setTimeout(() => {
             newSymbols.forEach(({symbol, row, col, dropDistance}, index) => {
                 const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
@@ -330,13 +330,13 @@ export class GameGrid {
                     
                     // Calculate fall parameters
                     const totalDropDistance = cellSize * (dropDistance + 1 + row);
-                    const fallDuration = 0.4 + (dropDistance + row) * 0.06;
+                    const fallDuration = 0.6 + (dropDistance + row) * 0.12; // Increased duration
                     
                     // Start falling with staggered delay
                     setTimeout(() => {
                         newSymbolElement.style.transition = `transform ${fallDuration}s cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
                         newSymbolElement.style.transform = `translateY(${totalDropDistance}px)`;
-                    }, index * 40);
+                    }, index * 60); // Increased stagger delay
                     
                     // Land and update cell
                     setTimeout(() => {
@@ -345,11 +345,11 @@ export class GameGrid {
                         // Bounce effect
                         cell.style.animation = 'none';
                         setTimeout(() => {
-                            cell.style.animation = 'bounceIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+                            cell.style.animation = 'bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
                         }, 10);
                         
                         newSymbolElement.remove();
-                    }, (fallDuration * 1000) + (index * 40));
+                    }, (fallDuration * 1000) + (index * 60)); // Match the stagger delay
                 }
             });
         }, dropDelay);
