@@ -75,7 +75,16 @@ body {
     aspect-ratio: 1;
     position: relative;
     overflow: hidden;
-    transform-origin: center;
+    transform-origin: center bottom;
+}
+
+.falling-symbol, .new-falling-symbol {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 2rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .grid-cell::before {
@@ -125,6 +134,42 @@ body {
         transform: translateY(0);
         opacity: 1;
     }
+}
+
+/* Gravity drop animation with bounce */
+@keyframes gravityDrop {
+    0% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(var(--drop-distance));
+    }
+}
+
+@keyframes bounceIn {
+    0% {
+        transform: scale(1, 0.8) translateY(5%);
+    }
+    30% {
+        transform: scale(0.9, 1.1) translateY(-3%);
+    }
+    60% {
+        transform: scale(1.05, 0.95) translateY(2%);
+    }
+    80% {
+        transform: scale(0.98, 1.02) translateY(-1%);
+    }
+    100% {
+        transform: scale(1, 1) translateY(0);
+    }
+}
+
+.gravity-fall {
+    animation: gravityDrop var(--fall-duration) cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+}
+
+.bounce-land {
+    animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
 }
 
 @keyframes symbolRemove {
