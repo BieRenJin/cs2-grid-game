@@ -1,11 +1,13 @@
 import { getRandomSymbol, SPECIAL_SYMBOLS } from './symbols.js';
 import { SpecialSymbolHandler } from './specialSymbols.js';
+import { GridAnimations } from './gridAnimations.js';
 
 export class GameGrid {
     constructor(size = 7) {
         this.size = size;
         this.grid = [];
         this.specialHandler = new SpecialSymbolHandler(this);
+        this.animations = null;
         this.initGrid();
     }
     
@@ -13,6 +15,11 @@ export class GameGrid {
         const gridElement = document.getElementById('game-grid');
         gridElement.innerHTML = '';
         this.grid = [];
+        
+        // Initialize animations after grid is created
+        if (!this.animations) {
+            this.animations = new GridAnimations(this);
+        }
         
         for (let row = 0; row < this.size; row++) {
             this.grid[row] = [];
@@ -161,45 +168,23 @@ export class GameGrid {
         });
     }
     
-    removeWinningSymbols(clusters) {
-        // First animate the removal of winning symbols
+    async removeWinningSymbols(clusters) {
+        // Animate removal
+        await this.animations.animateRemoval(clusters);
+        
+        // Update grid data
+        const columnsToFill = new Set();
         clusters.forEach(cluster => {
             cluster.positions.forEach(({row, col}) => {
-                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                if (cell) {
-                    cell.classList.add('symbol-remove');
-                }
+                this.grid[row][col] = null;
+                columnsToFill.add(col);
             });
         });
         
-        // After removal animation, clear the symbols and cascade
-        setTimeout(() => {
-            const columnsToFill = new Set();
-            
-            clusters.forEach(cluster => {
-                cluster.positions.forEach(({row, col}) => {
-                    this.grid[row][col] = null;
-                    columnsToFill.add(col);
-                    
-                    // Clear the cell visually
-                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                    if (cell) {
-                        cell.textContent = '';
-                        cell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                        cell.classList.remove('symbol-remove', 'winning');
-                    }
-                });
-            });
-            
-            // Cascade symbols down with staggered timing for each column
-            let delay = 0;
-            columnsToFill.forEach(col => {
-                setTimeout(() => {
-                    this.cascadeColumn(col);
-                }, delay);
-                delay += 80; // Increased stagger for more dramatic effect
-            });
-        }, 400); // Wait longer for removal animation
+        // Cascade columns
+        columnsToFill.forEach(col => {
+            this.cascadeColumn(col);
+        });
     }
     
     cascadeColumn(col) {
@@ -236,123 +221,8 @@ export class GameGrid {
             });
         }
         
-        // Animate movements
-        this.animateCascade(movements, newSymbols);
-    }
-    
-    animateCascade(movements, newSymbols) {
-        const gridElement = document.getElementById('game-grid');
-        const cellSize = gridElement.offsetWidth / this.size;
-        
-        // First, animate existing symbols falling down with gravity
-        movements.forEach(({symbol, fromRow, toRow, col}, index) => {
-            const fromCell = document.querySelector(`[data-row="${fromRow}"][data-col="${col}"]`);
-            const toCell = document.querySelector(`[data-row="${toRow}"][data-col="${col}"]`);
-            
-            if (fromCell && toCell) {
-                // Calculate drop distance in pixels
-                const dropRows = toRow - fromRow;
-                const dropDistance = dropRows * cellSize;
-                
-                // Create falling symbol
-                const fallingSymbol = document.createElement('div');
-                fallingSymbol.className = 'grid-cell falling-symbol';
-                fallingSymbol.textContent = symbol.icon;
-                fallingSymbol.style.backgroundColor = symbol.color + '33';
-                fallingSymbol.style.position = 'absolute';
-                fallingSymbol.style.width = cellSize + 'px';
-                fallingSymbol.style.height = cellSize + 'px';
-                fallingSymbol.style.zIndex = '1000';
-                
-                // Position at starting cell
-                const fromRect = fromCell.getBoundingClientRect();
-                const containerRect = gridElement.getBoundingClientRect();
-                fallingSymbol.style.left = (fromRect.left - containerRect.left) + 'px';
-                fallingSymbol.style.top = (fromRect.top - containerRect.top) + 'px';
-                
-                // Clear original cell immediately
-                fromCell.textContent = '';
-                fromCell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                fromCell.classList.remove('winning', 'special-symbol', 'wild-symbol');
-                
-                // Add to grid
-                gridElement.appendChild(fallingSymbol);
-                
-                // Apply gravity drop animation
-                const fallDuration = 0.5 + dropRows * 0.15; // Much longer fall for greater distance
-                setTimeout(() => {
-                    fallingSymbol.style.transition = `transform ${fallDuration}s cubic-bezier(0.55, 0, 1, 0.45)`;
-                    fallingSymbol.style.transform = `translateY(${dropDistance}px)`;
-                }, 10);
-                
-                // Land with a bounce
-                setTimeout(() => {
-                    // Update the target cell
-                    this.updateCell(toRow, col, symbol);
-                    
-                    // Add bounce effect to the cell
-                    toCell.style.animation = 'none';
-                    setTimeout(() => {
-                        toCell.style.animation = 'bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
-                    }, 10);
-                    
-                    // Remove falling element
-                    fallingSymbol.remove();
-                }, fallDuration * 1000);
-            }
-        });
-        
-        // Then drop new symbols from above
-        const dropDelay = movements.length > 0 ? 300 : 0; // Increased delay
-        setTimeout(() => {
-            newSymbols.forEach(({symbol, row, col, dropDistance}, index) => {
-                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                if (cell) {
-                    // Create new symbol above the grid
-                    const newSymbolElement = document.createElement('div');
-                    newSymbolElement.className = 'grid-cell new-falling-symbol';
-                    newSymbolElement.textContent = symbol.icon;
-                    newSymbolElement.style.backgroundColor = symbol.color + '33';
-                    newSymbolElement.style.position = 'absolute';
-                    newSymbolElement.style.width = cellSize + 'px';
-                    newSymbolElement.style.height = cellSize + 'px';
-                    newSymbolElement.style.zIndex = '900';
-                    
-                    // Position above the grid
-                    const cellRect = cell.getBoundingClientRect();
-                    const containerRect = gridElement.getBoundingClientRect();
-                    const startY = -cellSize * (dropDistance + 1);
-                    newSymbolElement.style.left = (cellRect.left - containerRect.left) + 'px';
-                    newSymbolElement.style.top = (cellRect.top - containerRect.top + startY) + 'px';
-                    
-                    // Add to grid
-                    gridElement.appendChild(newSymbolElement);
-                    
-                    // Calculate fall parameters
-                    const totalDropDistance = cellSize * (dropDistance + 1 + row);
-                    const fallDuration = 0.6 + (dropDistance + row) * 0.12; // Increased duration
-                    
-                    // Start falling with staggered delay
-                    setTimeout(() => {
-                        newSymbolElement.style.transition = `transform ${fallDuration}s cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
-                        newSymbolElement.style.transform = `translateY(${totalDropDistance}px)`;
-                    }, index * 60); // Increased stagger delay
-                    
-                    // Land and update cell
-                    setTimeout(() => {
-                        this.updateCell(row, col, symbol);
-                        
-                        // Bounce effect
-                        cell.style.animation = 'none';
-                        setTimeout(() => {
-                            cell.style.animation = 'bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
-                        }, 10);
-                        
-                        newSymbolElement.remove();
-                    }, (fallDuration * 1000) + (index * 60)); // Match the stagger delay
-                }
-            });
-        }, dropDelay);
+        // Use the new animation system
+        this.animations.animateCascade(movements, newSymbols);
     }
     
     applySpecialSymbolEffects(specialSymbolPositions) {

@@ -191,13 +191,13 @@ export class CS2GridGame {
             }, 500);
             
             // Cascade and check for additional wins
-            setTimeout(() => {
+            setTimeout(async () => {
                 this.soundManager.play('cascade');
                 this.addCascadeEffect(clusters);
-                this.grid.removeWinningSymbols(clusters);
+                await this.grid.removeWinningSymbols(clusters);
                 setTimeout(() => {
                     this.evaluateSpin(); // Check for cascading wins
-                }, 800); // Increased delay to allow for cascade animations
+                }, 600); // Reduced delay since animations are better coordinated
             }, 1000);
         } else {
             // No wins, check if scatters triggered free spins
