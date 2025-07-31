@@ -93,15 +93,19 @@ export class CS2GridGame {
     }
     
     updateUI() {
-        this.balanceElement.textContent = this.balance.toFixed(2);
-        this.betAmountElement.textContent = this.betAmount.toFixed(2);
-        this.betInput.value = this.betAmount.toFixed(2);
-        
-        // Disable spin if insufficient balance
-        this.spinButton.disabled = this.isSpinning || this.balance < this.betAmount;
-        
-        // Update RTP display if exists
-        this.updateRTPDisplay();
+        try {
+            this.balanceElement.textContent = this.balance.toFixed(2);
+            this.betAmountElement.textContent = this.betAmount.toFixed(2);
+            this.betInput.value = this.betAmount.toFixed(2);
+            
+            // Disable spin if insufficient balance
+            this.spinButton.disabled = this.isSpinning || this.balance < this.betAmount;
+            
+            // Update RTP display if exists
+            this.updateRTPDisplay();
+        } catch (error) {
+            console.error('Error updating UI:', error);
+        }
     }
     
     async spin() {
@@ -128,27 +132,25 @@ export class CS2GridGame {
         });
         
         // Perform the spin
-        this.grid.spin();
-        
-        // Wait for animation
-        setTimeout(() => {
+        this.grid.spin().then(() => {
             // Remove spin animation
             document.querySelectorAll('.grid-cell').forEach(cell => {
                 cell.classList.remove('spin-animation');
             });
             this.evaluateSpin();
-        }, 2000);
+        });
     }
     
-    evaluateSpin() {
-        // First check for scatters
-        const scattersTriggered = this.freeSpinsManager.checkForScatters();
-        if (scattersTriggered) {
-            this.soundManager.play('scatter');
-        }
-        
-        const clusters = this.grid.findClusters();
-        let totalWin = 0;
+    async evaluateSpin() {
+        try {
+            // First check for scatters
+            const scattersTriggered = this.freeSpinsManager.checkForScatters();
+            if (scattersTriggered) {
+                this.soundManager.play('scatter');
+            }
+            
+            const clusters = this.grid.findClusters();
+            let totalWin = 0;
         
         if (clusters.length > 0) {
             // Calculate winnings
@@ -207,6 +209,10 @@ export class CS2GridGame {
         }
         
         this.updateUI();
+        } catch (error) {
+            console.error('Error during spin evaluation:', error);
+            this.endSpin();
+        }
     }
     
     endSpin() {

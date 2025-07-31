@@ -56,59 +56,61 @@ export class GameGrid {
     }
     
     spin() {
-        // Animate the spin
-        const cells = document.querySelectorAll('.grid-cell');
-        const specialSymbolPositions = [];
-        
-        cells.forEach((cell, index) => {
-            setTimeout(() => {
-                cell.style.transform = 'rotateY(360deg)';
-                setTimeout(() => {
-                    const row = Math.floor(index / this.size);
-                    const col = index % this.size;
-                    
-                    // Check if special symbol should appear
-                    let newSymbol;
-                    
-                    // Check for boost features
-                    const game = window.game; // Access game instance
-                    let scatterChance = 0.005; // Base 0.5% chance
-                    
-                    if (game && game.bonusBoostActive) {
-                        scatterChance *= 2; // Double chance
-                    }
-                    if (game && game.superBoostActive) {
-                        scatterChance = 0.05; // Guaranteed 1 in 20
-                    }
-                    
-                    // Include scatter in symbol generation during boosts or free spins
-                    const includeScatter = Math.random() < scatterChance || (game && game.freeSpinsRemaining > 0);
-                    
-                    if (this.specialHandler.shouldAppearSpecialSymbol()) {
-                        newSymbol = this.specialHandler.getRandomSpecialSymbol();
-                        specialSymbolPositions.push({row, col, symbol: newSymbol});
-                    } else {
-                        newSymbol = getRandomSymbol(includeScatter);
-                        if (newSymbol.id === 'scatter') {
-                            specialSymbolPositions.push({row, col, symbol: newSymbol});
-                        }
-                    }
-                    
-                    this.grid[row][col] = newSymbol;
-                    this.updateCell(row, col, newSymbol);
-                    cell.style.transform = 'rotateY(0deg)';
-                }, 250);
-            }, index * 20);
-        });
-        
-        // Check for wins after animation completes
-        setTimeout(() => {
-            // Apply special symbol effects
-            this.applySpecialSymbolEffects(specialSymbolPositions);
+        return new Promise((resolve) => {
+            // Animate the spin
+            const cells = document.querySelectorAll('.grid-cell');
+            const specialSymbolPositions = [];
             
-            const clusters = this.findClusters();
-            return clusters;
-        }, cells.length * 20 + 500);
+            cells.forEach((cell, index) => {
+                setTimeout(() => {
+                    cell.style.transform = 'rotateY(360deg)';
+                    setTimeout(() => {
+                        const row = Math.floor(index / this.size);
+                        const col = index % this.size;
+                        
+                        // Check if special symbol should appear
+                        let newSymbol;
+                        
+                        // Check for boost features
+                        const game = window.game; // Access game instance
+                        let scatterChance = 0.005; // Base 0.5% chance
+                        
+                        if (game && game.bonusBoostActive) {
+                            scatterChance *= 2; // Double chance
+                        }
+                        if (game && game.superBoostActive) {
+                            scatterChance = 0.05; // Guaranteed 1 in 20
+                        }
+                        
+                        // Include scatter in symbol generation during boosts or free spins
+                        const includeScatter = Math.random() < scatterChance || (game && game.freeSpinsRemaining > 0);
+                        
+                        if (this.specialHandler.shouldAppearSpecialSymbol()) {
+                            newSymbol = this.specialHandler.getRandomSpecialSymbol();
+                            specialSymbolPositions.push({row, col, symbol: newSymbol});
+                        } else {
+                            newSymbol = getRandomSymbol(includeScatter);
+                            if (newSymbol.id === 'scatter') {
+                                specialSymbolPositions.push({row, col, symbol: newSymbol});
+                            }
+                        }
+                        
+                        this.grid[row][col] = newSymbol;
+                        this.updateCell(row, col, newSymbol);
+                        cell.style.transform = 'rotateY(0deg)';
+                    }, 250);
+                }, index * 20);
+            });
+            
+            // Check for wins after animation completes
+            setTimeout(() => {
+                // Apply special symbol effects
+                this.applySpecialSymbolEffects(specialSymbolPositions);
+                
+                const clusters = this.findClusters();
+                resolve({ clusters, specialSymbolPositions });
+            }, cells.length * 20 + 500);
+        });
     }
     
     findClusters() {
@@ -117,7 +119,7 @@ export class GameGrid {
         
         for (let row = 0; row < this.size; row++) {
             for (let col = 0; col < this.size; col++) {
-                if (!visited[row][col]) {
+                if (!visited[row][col] && this.grid[row][col]) {
                     const cluster = this.dfs(row, col, this.grid[row][col].id, visited);
                     if (cluster.length >= 5) {
                         clusters.push({
@@ -135,7 +137,7 @@ export class GameGrid {
     
     dfs(row, col, symbolId, visited) {
         if (row < 0 || row >= this.size || col < 0 || col >= this.size ||
-            visited[row][col] || this.grid[row][col].id !== symbolId) {
+            visited[row][col] || !this.grid[row][col] || this.grid[row][col].id !== symbolId) {
             return [];
         }
         
@@ -169,22 +171,31 @@ export class GameGrid {
     }
     
     async removeWinningSymbols(clusters) {
-        // Animate removal
-        await this.animations.animateRemoval(clusters);
-        
-        // Update grid data
-        const columnsToFill = new Set();
-        clusters.forEach(cluster => {
-            cluster.positions.forEach(({row, col}) => {
-                this.grid[row][col] = null;
-                columnsToFill.add(col);
+        try {
+            // Clean up any orphaned elements first
+            if (this.animations) {
+                this.animations.cleanup();
+            }
+            
+            // Animate removal
+            await this.animations.animateRemoval(clusters);
+            
+            // Update grid data
+            const columnsToFill = new Set();
+            clusters.forEach(cluster => {
+                cluster.positions.forEach(({row, col}) => {
+                    this.grid[row][col] = null;
+                    columnsToFill.add(col);
+                });
             });
-        });
-        
-        // Cascade columns
-        columnsToFill.forEach(col => {
-            this.cascadeColumn(col);
-        });
+            
+            // Cascade columns
+            columnsToFill.forEach(col => {
+                this.cascadeColumn(col);
+            });
+        } catch (error) {
+            console.error('Error in removeWinningSymbols:', error);
+        }
     }
     
     cascadeColumn(col) {

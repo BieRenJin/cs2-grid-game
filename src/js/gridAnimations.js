@@ -143,27 +143,35 @@ export class GridAnimations {
     
     // Handle landing with impact effect
     handleLanding(row, col, symbol, animatedElement) {
-        const cell = this.getCell(row, col);
-        if (!cell) return;
-        
-        // Update cell content
-        this.grid.updateCell(row, col, symbol);
-        
-        // Create dust effect
-        this.createDustEffect(row, col);
-        
-        // Apply squash effect
-        cell.style.animation = 'none';
-        requestAnimationFrame(() => {
-            cell.style.animation = 'landingImpact 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
-        });
-        
-        // Remove animated element
-        animatedElement.remove();
-        
-        // Play impact sound if available
-        if (window.game && window.game.soundManager) {
-            window.game.soundManager.play('cascade');
+        try {
+            const cell = this.getCell(row, col);
+            if (!cell) {
+                animatedElement.remove();
+                return;
+            }
+            
+            // Update cell content
+            this.grid.updateCell(row, col, symbol);
+            
+            // Create dust effect
+            this.createDustEffect(row, col);
+            
+            // Apply squash effect
+            cell.style.animation = 'none';
+            requestAnimationFrame(() => {
+                cell.style.animation = 'landingImpact 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+            });
+            
+            // Remove animated element
+            animatedElement.remove();
+            
+            // Play impact sound if available
+            if (window.game && window.game.soundManager) {
+                window.game.soundManager.play('cascade');
+            }
+        } catch (error) {
+            console.error('Error in handleLanding:', error);
+            if (animatedElement) animatedElement.remove();
         }
     }
     
@@ -203,6 +211,25 @@ export class GridAnimations {
     
     // Update cell size on resize
     updateCellSize() {
-        this.cellSize = this.gridElement.offsetWidth / this.grid.size;
+        try {
+            this.cellSize = this.gridElement.offsetWidth / this.grid.size;
+        } catch (error) {
+            console.error('Error updating cell size:', error);
+            this.cellSize = 50; // Fallback size
+        }
+    }
+    
+    // Clean up any orphaned animated elements
+    cleanup() {
+        try {
+            const orphanedElements = this.gridElement.querySelectorAll('.falling-symbol, .new-falling-symbol');
+            orphanedElements.forEach(el => {
+                if (el.parentNode) {
+                    el.remove();
+                }
+            });
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+        }
     }
 }
