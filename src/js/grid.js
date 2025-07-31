@@ -275,4 +275,15 @@ export class GameGrid {
         
         return positions;
     }
+    
+    // Refresh all cell images after loading
+    refreshImages() {
+        for (let row = 0; row < this.size; row++) {
+            for (let col = 0; col < this.size; col++) {
+                if (this.grid[row][col]) {
+                    this.updateCell(row, col, this.grid[row][col]);
+                }
+            }
+        }
+    }
 }

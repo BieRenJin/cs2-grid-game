@@ -1,9 +1,15 @@
+import { ImageGenerator } from './imageGenerator.js';
+
+// Global image generator instance
+const imageGenerator = new ImageGenerator();
+
 // CS2-themed symbols configuration
 export const SYMBOLS = {
     FLASHBANG: {
         id: 'flashbang',
         name: 'Flashbang',
         icon: '💥',
+        imageUrl: null,
         color: '#808080',
         tier: 1,
         paytable: {
@@ -15,6 +21,7 @@ export const SYMBOLS = {
         id: 'smoke',
         name: 'Smoke Grenade',
         icon: '💨',
+        imageUrl: null,
         color: '#696969',
         tier: 1,
         paytable: {
@@ -26,6 +33,7 @@ export const SYMBOLS = {
         id: 'hegrenade',
         name: 'HE Grenade',
         icon: '💣',
+        imageUrl: null,
         color: '#8B4513',
         tier: 2,
         paytable: {
@@ -37,6 +45,7 @@ export const SYMBOLS = {
         id: 'kevlar',
         name: 'Kevlar Vest',
         icon: '🛡️',
+        imageUrl: null,
         color: '#4169E1',
         tier: 2,
         paytable: {
@@ -48,6 +57,7 @@ export const SYMBOLS = {
         id: 'defusekit',
         name: 'Defuse Kit',
         icon: '🔧',
+        imageUrl: null,
         color: '#32CD32',
         tier: 3,
         paytable: {
@@ -59,6 +69,7 @@ export const SYMBOLS = {
         id: 'deagle',
         name: 'Desert Eagle',
         icon: '🔫',
+        imageUrl: null,
         color: '#FFD700',
         tier: 3,
         paytable: {
@@ -70,6 +81,7 @@ export const SYMBOLS = {
         id: 'ak47',
         name: 'AK-47',
         icon: '🔥',
+        imageUrl: null,
         color: '#FF4500',
         tier: 4,
         paytable: {
@@ -81,6 +93,7 @@ export const SYMBOLS = {
         id: 'awp',
         name: 'AWP',
         icon: '🎯',
+        imageUrl: null,
         color: '#00FF00',
         tier: 5,
         paytable: {
@@ -96,6 +109,7 @@ export const SPECIAL_SYMBOLS = {
         id: 'rush',
         name: 'CT Badge',
         icon: '⭐',
+        imageUrl: null,
         color: '#FFD700',
         description: 'Adds 4-11 Wild symbols'
     },
@@ -103,6 +117,7 @@ export const SPECIAL_SYMBOLS = {
         id: 'surge',
         name: 'Rainbow Bomb',
         icon: '🌈',
+        imageUrl: null,
         color: '#FF69B4',
         description: 'Transforms adjacent symbols'
     },
@@ -110,6 +125,7 @@ export const SPECIAL_SYMBOLS = {
         id: 'slash',
         name: 'Karambit',
         icon: '🗡️',
+        imageUrl: null,
         color: '#8A2BE2',
         description: 'Removes horizontal and vertical lines'
     },
@@ -117,6 +133,7 @@ export const SPECIAL_SYMBOLS = {
         id: 'multiplier',
         name: 'MVP Star',
         icon: '⭐',
+        imageUrl: null,
         color: '#FFD700',
         description: 'Multiplies winnings (Free Spins only)'
     },
@@ -124,6 +141,7 @@ export const SPECIAL_SYMBOLS = {
         id: 'scatter',
         name: 'Bomb',
         icon: '💣',
+        imageUrl: null,
         color: '#FF0000',
         description: 'Triggers Free Spins'
     }
@@ -162,5 +180,65 @@ export function getRandomSymbol(includeScatter = false) {
     return weights[0].symbol;
 }
 
+// Get symbol display content (image or emoji)
+export function getSymbolDisplay(symbol) {
+    if (symbol.imageUrl) {
+        return `<img src="${symbol.imageUrl}" alt="${symbol.name}" class="symbol-image" />`;
+    }
+    return symbol.icon;
+}
+
+// Initialize images on load
+let imagesLoaded = false;
+
+// Function to load AI-generated images
+export async function loadSymbolImages() {
+    if (imagesLoaded) return;
+    
+    try {
+        console.log('Loading CS2 symbol images...');
+        const images = await imageGenerator.generateAllSymbols();
+        
+        // Update symbol objects with image URLs
+        if (images.flashbang) SYMBOLS.FLASHBANG.imageUrl = images.flashbang;
+        if (images.smoke) SYMBOLS.SMOKE.imageUrl = images.smoke;
+        if (images.grenade) SYMBOLS.HE_GRENADE.imageUrl = images.grenade;
+        if (images.kevlar) SYMBOLS.KEVLAR.imageUrl = images.kevlar;
+        if (images.defuse) SYMBOLS.DEFUSE_KIT.imageUrl = images.defuse;
+        if (images.deagle) SYMBOLS.DEAGLE.imageUrl = images.deagle;
+        if (images.ak47) SYMBOLS.AK47.imageUrl = images.ak47;
+        if (images.awp) SYMBOLS.AWP.imageUrl = images.awp;
+        if (images.rush) SPECIAL_SYMBOLS.RUSH.imageUrl = images.rush;
+        if (images.surge) SPECIAL_SYMBOLS.SURGE.imageUrl = images.surge;
+        if (images.slash) SPECIAL_SYMBOLS.SLASH.imageUrl = images.slash;
+        if (images.scatter) SPECIAL_SYMBOLS.SCATTER.imageUrl = images.scatter;
+        
+        imagesLoaded = true;
+        console.log('CS2 symbol images loaded successfully!');
+        
+        // Trigger UI update if game exists
+        if (window.game && window.game.grid) {
+            window.game.grid.refreshImages();
+        }
+    } catch (error) {
+        console.error('Failed to load symbol images:', error);
+        // Use fallback images
+        Object.values(SYMBOLS).forEach(symbol => {
+            if (!symbol.imageUrl) {
+                symbol.imageUrl = imageGenerator.getFallbackImage(symbol.id);
+            }
+        });
+        Object.values(SPECIAL_SYMBOLS).forEach(symbol => {
+            if (!symbol.imageUrl) {
+                symbol.imageUrl = imageGenerator.getFallbackImage(symbol.id);
+            }
+        });
+        imagesLoaded = true;
+    }
+}
+
 // Get symbol array as list for easier access
 export const SYMBOL_LIST = Object.values(SYMBOLS);
+
+// Export image generator for external use
+export { imageGenerator };
