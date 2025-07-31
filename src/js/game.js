@@ -24,7 +24,9 @@ export class CS2GridGame {
         this.updateUI();
         this.addSoundToggle();
         // Initialize symbol images
+        console.log('🎮 CS2 Grid Game starting...');
         initializeSymbolImages();
+        console.log('✅ Game initialization complete');
     }
     
     initializeElements() {
@@ -111,8 +113,12 @@ export class CS2GridGame {
     }
     
     async spin() {
-        if (this.isSpinning || this.balance < this.betAmount) return;
+        if (this.isSpinning || this.balance < this.betAmount) {
+            console.log('⚠️ Cannot spin - already spinning or insufficient balance');
+            return;
+        }
         
+        console.log('🎰 Starting new spin...');
         this.isSpinning = true;
         this.spinButton.disabled = true;
         

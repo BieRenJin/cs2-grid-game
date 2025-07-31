@@ -1,5 +1,5 @@
 // Improved grid animations with better physics and visual effects
-import { getSymbolDisplay } from './symbols.js';
+import { getSymbolDisplayWithLog } from './symbols.js';
 
 export class GridAnimations {
     constructor(grid) {
@@ -125,7 +125,7 @@ export class GridAnimations {
     createAnimatedSymbol(symbol, row, col) {
         const element = document.createElement('div');
         element.className = 'grid-cell falling-symbol';
-        element.innerHTML = getSymbolDisplay(symbol);
+        element.innerHTML = getSymbolDisplayWithLog(symbol);
         element.style.backgroundColor = symbol.color + '33';
         element.style.position = 'absolute';
         element.style.width = this.cellSize + 'px';

@@ -1,4 +1,4 @@
-import { getRandomSymbol, SPECIAL_SYMBOLS } from './symbols.js';
+import { getRandomSymbol, SPECIAL_SYMBOLS, getSymbolDisplayWithLog } from './symbols.js';
 import { SpecialSymbolHandler } from './specialSymbols.js';
 import { GridAnimations } from './gridAnimations.js';
 
@@ -40,7 +40,8 @@ export class GameGrid {
     updateCell(row, col, symbol) {
         const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
         if (cell) {
-            cell.textContent = symbol.icon;
+            console.log(`🔄 Updating cell [${row},${col}] with symbol: ${symbol.name}`);
+            cell.innerHTML = getSymbolDisplayWithLog(symbol);
             cell.style.backgroundColor = symbol.color + '33'; // Add transparency
             cell.dataset.symbolId = symbol.id;
             

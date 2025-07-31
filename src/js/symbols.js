@@ -1,4 +1,5 @@
 import { getSymbolDisplay, preloadSymbolImages } from './symbolImages.js';
+import { rtpManager } from './rtp.js';
 
 // CS2-themed symbols configuration
 export const SYMBOLS = {
@@ -131,8 +132,6 @@ export const SPECIAL_SYMBOLS = {
     }
 };
 
-import { rtpManager } from './rtp.js';
-
 // Get random symbol based on weighted probability
 export function getRandomSymbol(includeScatter = false) {
     const weights = [
@@ -157,72 +156,33 @@ export function getRandomSymbol(includeScatter = false) {
     for (const item of weights) {
         random -= item.weight;
         if (random <= 0) {
+            console.log(`🎲 Selected symbol: ${item.symbol.name} (${item.symbol.id})`);
             return item.symbol;
         }
     }
     
+    console.log(`🎲 Fallback symbol: ${weights[0].symbol.name}`);
     return weights[0].symbol;
 }
 
-// Get symbol display content (image or emoji)
-export function getSymbolDisplay(symbol) {
-    if (symbol.imageUrl) {
-        return `<img src="${symbol.imageUrl}" alt="${symbol.name}" class="symbol-image" />`;
-    }
-    return symbol.icon;
+// Initialize symbol images with logging
+export function initializeSymbolImages() {
+    console.log('🎮 Initializing CS2 symbol images...');
+    console.log('📊 Available symbols:', Object.keys(SYMBOLS));
+    console.log('⭐ Special symbols:', Object.keys(SPECIAL_SYMBOLS));
+    preloadSymbolImages();
 }
 
-// Initialize images on load
-let imagesLoaded = false;
-
-// Function to load AI-generated images
-export async function loadSymbolImages() {
-    if (imagesLoaded) return;
-    
-    try {
-        console.log('Loading CS2 symbol images...');
-        const images = await imageGenerator.generateAllSymbols();
-        
-        // Update symbol objects with image URLs
-        if (images.flashbang) SYMBOLS.FLASHBANG.imageUrl = images.flashbang;
-        if (images.smoke) SYMBOLS.SMOKE.imageUrl = images.smoke;
-        if (images.grenade) SYMBOLS.HE_GRENADE.imageUrl = images.grenade;
-        if (images.kevlar) SYMBOLS.KEVLAR.imageUrl = images.kevlar;
-        if (images.defuse) SYMBOLS.DEFUSE_KIT.imageUrl = images.defuse;
-        if (images.deagle) SYMBOLS.DEAGLE.imageUrl = images.deagle;
-        if (images.ak47) SYMBOLS.AK47.imageUrl = images.ak47;
-        if (images.awp) SYMBOLS.AWP.imageUrl = images.awp;
-        if (images.rush) SPECIAL_SYMBOLS.RUSH.imageUrl = images.rush;
-        if (images.surge) SPECIAL_SYMBOLS.SURGE.imageUrl = images.surge;
-        if (images.slash) SPECIAL_SYMBOLS.SLASH.imageUrl = images.slash;
-        if (images.scatter) SPECIAL_SYMBOLS.SCATTER.imageUrl = images.scatter;
-        
-        imagesLoaded = true;
-        console.log('CS2 symbol images loaded successfully!');
-        
-        // Trigger UI update if game exists
-        if (window.game && window.game.grid) {
-            window.game.grid.refreshImages();
-        }
-    } catch (error) {
-        console.error('Failed to load symbol images:', error);
-        // Use fallback images
-        Object.values(SYMBOLS).forEach(symbol => {
-            if (!symbol.imageUrl) {
-                symbol.imageUrl = imageGenerator.getFallbackImage(symbol.id);
-            }
-        });
-        Object.values(SPECIAL_SYMBOLS).forEach(symbol => {
-            if (!symbol.imageUrl) {
-                symbol.imageUrl = imageGenerator.getFallbackImage(symbol.id);
-            }
-        });
-        imagesLoaded = true;
-    }
+// Enhanced getSymbolDisplay with logging
+export function getSymbolDisplayWithLog(symbol) {
+    const result = getSymbolDisplay(symbol);
+    const hasImage = result.includes('<img');
+    console.log(`🎨 Symbol ${symbol.id} (${symbol.name}): ${hasImage ? 'Using SVG image' : 'Using emoji fallback'}`);
+    return result;
 }
+
+// Export both versions
+export { getSymbolDisplay };
 
 // Get symbol array as list for easier access
 export const SYMBOL_LIST = Object.values(SYMBOLS);
-
-// Export image generator for external use
-export { imageGenerator };
