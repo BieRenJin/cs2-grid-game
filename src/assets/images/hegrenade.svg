@@ -1,0 +1,18 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grenadeGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8B4513"/>
+      <stop offset="50%" stop-color="#A0522D"/>
+      <stop offset="100%" stop-color="#654321"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="50" cy="60" rx="22" ry="28" fill="url(#grenadeGrad)" stroke="#444" stroke-width="2"/>
+  <rect x="46" y="25" width="8" height="20" fill="#333" rx="4"/>
+  <circle cx="50" cy="20" r="5" fill="#FF4500"/>
+  <rect x="35" y="50" width="30" height="3" fill="#654321"/>
+  <rect x="35" y="60" width="30" height="3" fill="#654321"/>
+  <rect x="35" y="70" width="30" height="3" fill="#654321"/>
+  <circle cx="42" cy="45" r="2" fill="#333"/>
+  <circle cx="58" cy="55" r="2" fill="#333"/>
+  <circle cx="45" cy="75" r="2" fill="#333"/>
+</svg>

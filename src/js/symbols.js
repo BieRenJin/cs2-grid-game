@@ -9,7 +9,6 @@ export const SYMBOLS = {
         id: 'flashbang',
         name: 'Flashbang',
         icon: '💥',
-        imageUrl: null,
         color: '#808080',
         tier: 1,
         paytable: {
@@ -21,7 +20,6 @@ export const SYMBOLS = {
         id: 'smoke',
         name: 'Smoke Grenade',
         icon: '💨',
-        imageUrl: null,
         color: '#696969',
         tier: 1,
         paytable: {
@@ -33,7 +31,6 @@ export const SYMBOLS = {
         id: 'hegrenade',
         name: 'HE Grenade',
         icon: '💣',
-        imageUrl: null,
         color: '#8B4513',
         tier: 2,
         paytable: {
@@ -45,7 +42,6 @@ export const SYMBOLS = {
         id: 'kevlar',
         name: 'Kevlar Vest',
         icon: '🛡️',
-        imageUrl: null,
         color: '#4169E1',
         tier: 2,
         paytable: {
@@ -57,7 +53,6 @@ export const SYMBOLS = {
         id: 'defusekit',
         name: 'Defuse Kit',
         icon: '🔧',
-        imageUrl: null,
         color: '#32CD32',
         tier: 3,
         paytable: {
@@ -69,7 +64,6 @@ export const SYMBOLS = {
         id: 'deagle',
         name: 'Desert Eagle',
         icon: '🔫',
-        imageUrl: null,
         color: '#FFD700',
         tier: 3,
         paytable: {
@@ -81,7 +75,6 @@ export const SYMBOLS = {
         id: 'ak47',
         name: 'AK-47',
         icon: '🔥',
-        imageUrl: null,
         color: '#FF4500',
         tier: 4,
         paytable: {
@@ -93,7 +86,6 @@ export const SYMBOLS = {
         id: 'awp',
         name: 'AWP',
         icon: '🎯',
-        imageUrl: null,
         color: '#00FF00',
         tier: 5,
         paytable: {
@@ -109,7 +101,6 @@ export const SPECIAL_SYMBOLS = {
         id: 'rush',
         name: 'CT Badge',
         icon: '⭐',
-        imageUrl: null,
         color: '#FFD700',
         description: 'Adds 4-11 Wild symbols'
     },
@@ -117,7 +108,6 @@ export const SPECIAL_SYMBOLS = {
         id: 'surge',
         name: 'Rainbow Bomb',
         icon: '🌈',
-        imageUrl: null,
         color: '#FF69B4',
         description: 'Transforms adjacent symbols'
     },
@@ -125,7 +115,6 @@ export const SPECIAL_SYMBOLS = {
         id: 'slash',
         name: 'Karambit',
         icon: '🗡️',
-        imageUrl: null,
         color: '#8A2BE2',
         description: 'Removes horizontal and vertical lines'
     },
@@ -133,7 +122,6 @@ export const SPECIAL_SYMBOLS = {
         id: 'multiplier',
         name: 'MVP Star',
         icon: '⭐',
-        imageUrl: null,
         color: '#FFD700',
         description: 'Multiplies winnings (Free Spins only)'
     },
@@ -141,7 +129,6 @@ export const SPECIAL_SYMBOLS = {
         id: 'scatter',
         name: 'Bomb',
         icon: '💣',
-        imageUrl: null,
         color: '#FF0000',
         description: 'Triggers Free Spins'
     }

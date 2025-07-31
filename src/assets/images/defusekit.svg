@@ -1,0 +1,18 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="defuseGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#32CD32"/>
+      <stop offset="50%" stop-color="#228B22"/>
+      <stop offset="100%" stop-color="#006400"/>
+    </linearGradient>
+  </defs>
+  <rect x="25" y="35" width="50" height="30" fill="url(#defuseGrad)" rx="8" stroke="#004d00" stroke-width="2"/>
+  <rect x="30" y="25" width="40" height="15" fill="#228B22" rx="4"/>
+  <circle cx="35" cy="50" r="4" fill="#000"/>
+  <circle cx="65" cy="50" r="4" fill="#000"/>
+  <rect x="45" y="30" width="10" height="4" fill="#FF0000" rx="2"/>
+  <rect x="30" y="45" width="8" height="3" fill="#00FF00"/>
+  <rect x="30" y="50" width="8" height="3" fill="#00FF00"/>
+  <rect x="30" y="55" width="8" height="3" fill="#00FF00"/>
+  <text x="50" y="80" text-anchor="middle" font-size="8" fill="#32CD32" font-weight="bold">DEFUSE KIT</text>
+</svg>

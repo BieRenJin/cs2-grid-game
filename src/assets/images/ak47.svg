@@ -1,0 +1,19 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ak47Grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8B4513"/>
+      <stop offset="30%" stop-color="#A0522D"/>
+      <stop offset="70%" stop-color="#654321"/>
+      <stop offset="100%" stop-color="#2F4F4F"/>
+    </linearGradient>
+  </defs>
+  <rect x="5" y="42" width="70" height="16" fill="url(#ak47Grad)" rx="4" stroke="#654321" stroke-width="2"/>
+  <rect x="2" y="35" width="25" height="30" fill="#A0522D" rx="6" stroke="#654321" stroke-width="2"/>
+  <rect x="65" y="46" width="25" height="8" fill="#2F4F4F" rx="2"/>
+  <rect x="12" y="30" width="12" height="15" fill="#8B4513" rx="3"/>
+  <rect x="30" y="40" width="8" height="4" fill="#654321"/>
+  <rect x="45" y="40" width="8" height="4" fill="#654321"/>
+  <circle cx="15" cy="50" r="2" fill="#FFD700"/>
+  <path d="M75 50 L85 46 L90 50 L85 54 L75 50" fill="#FF4500"/>
+  <text x="50" y="85" text-anchor="middle" font-size="8" fill="#FF4500" font-weight="bold">AK-47</text>
+</svg>

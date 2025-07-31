@@ -1,5 +1,5 @@
 import { GameGrid } from './grid.js';
-import { SYMBOLS, SPECIAL_SYMBOLS, loadSymbolImages } from './symbols.js';
+import { SYMBOLS, SPECIAL_SYMBOLS, initializeSymbolImages } from './symbols.js';
 import { FreeSpinsManager } from './freeSpins.js';
 import { SoundManager } from './sounds.js';
 import { rtpManager } from './rtp.js';
@@ -23,10 +23,8 @@ export class CS2GridGame {
         this.initializeElements();
         this.updateUI();
         this.addSoundToggle();
-        this.addImageGenerationButton();
-        
-        // Try to load images automatically
-        this.loadImages();
+        // Initialize symbol images
+        initializeSymbolImages();
     }
     
     initializeElements() {
@@ -395,70 +393,6 @@ export class CS2GridGame {
         });
     }
     
-    addImageGenerationButton() {
-        const button = document.createElement('button');
-        button.id = 'generate-images';
-        button.textContent = '🎨 Generate CS2 Images';
-        button.style.cssText = `
-            position: absolute;
-            top: 60px;
-            left: 10px;
-            background: linear-gradient(45deg, #ff6b35, #f7931e);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
-        `;
-        
-        button.addEventListener('click', () => {
-            this.loadImages(true);
-        });
-        
-        button.addEventListener('mouseenter', () => {
-            button.style.transform = 'scale(1.05)';
-        });
-        
-        button.addEventListener('mouseleave', () => {
-            button.style.transform = 'scale(1)';
-        });
-        
-        document.getElementById('game-container').appendChild(button);
-    }
-    
-    async loadImages(force = false) {
-        const button = document.getElementById('generate-images');
-        if (!button) return;
-        
-        try {
-            if (force || !localStorage.getItem('images_loaded')) {
-                button.textContent = '⏳ Generating Images...';
-                button.disabled = true;
-                
-                await loadSymbolImages();
-                
-                button.textContent = '✅ Images Generated!';
-                localStorage.setItem('images_loaded', 'true');
-                
-                // Hide button after successful generation
-                setTimeout(() => {
-                    button.style.opacity = '0.5';
-                    button.textContent = '🎨 Regenerate Images';
-                    button.disabled = false;
-                }, 2000);
-            }
-        } catch (error) {
-            console.error('Failed to load images:', error);
-            button.textContent = '❌ Generation Failed';
-            button.disabled = false;
-            
-            setTimeout(() => {
-                button.textContent = '🎨 Retry Generation';
-            }, 3000);
-        }
-    }
     
     updateRTPDisplay() {
         const stats = rtpManager.getSessionStats();

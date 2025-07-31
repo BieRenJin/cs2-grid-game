@@ -1,0 +1,19 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="rainbowGrad" cx="0.5" cy="0.5" r="0.7">
+      <stop offset="0%" stop-color="#FF0000"/>
+      <stop offset="16%" stop-color="#FF8000"/>
+      <stop offset="33%" stop-color="#FFFF00"/>
+      <stop offset="50%" stop-color="#00FF00"/>
+      <stop offset="66%" stop-color="#0080FF"/>
+      <stop offset="83%" stop-color="#8000FF"/>
+      <stop offset="100%" stop-color="#FF0080"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="35" fill="url(#rainbowGrad)" opacity="0.9"/>
+  <circle cx="50" cy="50" r="25" fill="none" stroke="#FFF" stroke-width="3" opacity="0.8"/>
+  <circle cx="50" cy="50" r="15" fill="none" stroke="#FFF" stroke-width="2" opacity="0.6"/>
+  <path d="M20 30 Q35 20 50 30 Q65 20 80 30 Q70 45 50 40 Q30 45 20 30" fill="#FFF" opacity="0.4"/>
+  <path d="M25 65 Q40 75 50 65 Q60 75 75 65 Q65 50 50 55 Q35 50 25 65" fill="#FFF" opacity="0.4"/>
+  <text x="50" y="90" text-anchor="middle" font-size="7" fill="#FF69B4" font-weight="bold">SURGE</text>
+</svg>
