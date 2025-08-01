@@ -196,7 +196,7 @@ export class CS2GridGame {
                 return;
             }
             
-            console.log(`🔍 Evaluation cycle ${this.evaluationDepth}: CHECK WINS → REMOVE → CASCADE → CHECK EFFECTS → TRIGGER → CASCADE`);
+            console.log(`🔍 Evaluation cycle ${this.evaluationDepth}: CHECK WINS → [REMOVE → CASCADE] → CHECK EFFECTS → [TRIGGER SINGLE EFFECT → CASCADE] → LOOP`);
             
             // STEP 1: Check for winning clusters FIRST
             const clusters = this.grid.findClusters();
@@ -276,11 +276,12 @@ export class CS2GridGame {
                 // No wins found, check for special effects
                 console.log('💫 No wins found, checking for special effects');
                 
-                // STEP 3: Process special symbols if no wins
-                const hasSpecialEffects = await this.processSpecialSymbols();
+                // STEP 3: Process special symbols if no wins (one type at a time)
+                const triggeredEffect = await this.processSpecialSymbols();
                 
-                if (hasSpecialEffects) {
-                    // Special effects were triggered, continue evaluation after cascade
+                if (triggeredEffect) {
+                    // A special effect was triggered, continue full evaluation cycle
+                    console.log(`✨ ${triggeredEffect.toUpperCase()} effect triggered, continuing evaluation cycle`);
                     setTimeout(() => {
                         this.evaluateSpin();
                     }, 800);
@@ -303,100 +304,134 @@ export class CS2GridGame {
         }
     }
     
-    // Process special symbols with priority order and simultaneous same-type triggering
+    // Process special symbols one type at a time, each triggering a full evaluation cycle
     async processSpecialSymbols() {
         console.log('⭐ Checking for special symbol effects');
         
-        const specialSymbolPositions = [];
+        // Check for each type of special symbol in priority order
+        // Each type gets its own complete cycle: trigger → cascade → evaluate
         
-        // Find all special symbols on the grid
+        // PRIORITY 1: Rush symbols
+        const rushEffect = await this.processRushSymbols();
+        if (rushEffect) {
+            return 'rush'; // Return which effect was triggered
+        }
+        
+        // PRIORITY 2: Surge symbols  
+        const surgeEffect = await this.processSurgeSymbols();
+        if (surgeEffect) {
+            return 'surge';
+        }
+        
+        // PRIORITY 3: Slash symbols
+        const slashEffect = await this.processSlashSymbols();
+        if (slashEffect) {
+            return 'slash';
+        }
+        
+        console.log('✅ No special effects found');
+        return false; // No effects triggered
+    }
+    
+    // Process all Rush symbols as a group
+    async processRushSymbols() {
+        const rushSymbols = [];
+        
+        // Find all Rush symbols on the grid
         for (let row = 0; row < this.grid.size; row++) {
             for (let col = 0; col < this.grid.size; col++) {
                 const symbol = this.grid.grid[row][col];
-                if (symbol && (symbol.id === 'rush' || symbol.id === 'surge' || symbol.id === 'slash')) {
-                    specialSymbolPositions.push({row, col, symbol});
+                if (symbol && symbol.id === 'rush') {
+                    rushSymbols.push({row, col, symbol});
                 }
             }
         }
         
-        if (specialSymbolPositions.length === 0) {
-            return false; // No special symbols found
+        if (rushSymbols.length === 0) {
+            return false;
         }
         
-        console.log(`🎯 Found ${specialSymbolPositions.length} special symbols`);
+        console.log(`🌟 Found ${rushSymbols.length} RUSH symbols - triggering SIMULTANEOUSLY`);
+        await this.showSpecialSymbolsActivation(rushSymbols);
         
-        // Separate symbols by type
-        const rushSymbols = specialSymbolPositions.filter(s => s.symbol.id === 'rush');
-        const surgeSymbols = specialSymbolPositions.filter(s => s.symbol.id === 'surge');
-        const slashSymbols = specialSymbolPositions.filter(s => s.symbol.id === 'slash');
+        const wildPositions = new Set();
+        rushSymbols.forEach(({row, col}) => {
+            console.log(`🌟 Rush at [${row},${col}] adding wilds`);
+            const positions = this.grid.specialHandler.getRushEffectPositions({row, col});
+            positions.forEach(pos => wildPositions.add(`${pos.row},${pos.col}`));
+        });
         
-        let effectsTriggered = false;
+        // Apply all Rush effects at once
+        await this.applyRushEffects(wildPositions, rushSymbols);
+        return true;
+    }
+    
+    // Process all Surge symbols as a group
+    async processSurgeSymbols() {
+        const surgeSymbols = [];
         
-        // Process in priority order: Rush -> Surge -> Slash
-        // Same type symbols trigger simultaneously
-        
-        // PRIORITY 1: All Rush symbols trigger together
-        if (rushSymbols.length > 0) {
-            console.log(`🌟 ${rushSymbols.length} RUSH symbols triggering SIMULTANEOUSLY`);
-            await this.showSpecialSymbolsActivation(rushSymbols);
-            
-            const wildPositions = new Set();
-            rushSymbols.forEach(({row, col}) => {
-                console.log(`🌟 Rush at [${row},${col}] adding wilds`);
-                const positions = this.grid.specialHandler.getRushEffectPositions({row, col});
-                positions.forEach(pos => wildPositions.add(`${pos.row},${pos.col}`));
-            });
-            
-            // Apply all Rush effects at once (including keeping Rush symbols as Rush symbols)
-            if (wildPositions.size > 0 || rushSymbols.length > 0) {
-                await this.applyRushEffects(wildPositions, rushSymbols);
-                effectsTriggered = true;
+        // Find all Surge symbols on the grid
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                const symbol = this.grid.grid[row][col];
+                if (symbol && symbol.id === 'surge') {
+                    surgeSymbols.push({row, col, symbol});
+                }
             }
         }
         
-        // PRIORITY 2: All Surge symbols trigger together
-        if (surgeSymbols.length > 0) {
-            console.log(`🌈 ${surgeSymbols.length} SURGE symbols triggering SIMULTANEOUSLY`);
-            await this.showSpecialSymbolsActivation(surgeSymbols);
-            
-            const transformations = new Map();
-            surgeSymbols.forEach(({row, col}) => {
-                console.log(`🌈 Surge at [${row},${col}] transforming adjacent`);
-                const transforms = this.grid.specialHandler.getSurgeEffectTransformations({row, col});
-                transforms.forEach(({position, symbol}) => {
-                    // Later transformations can override earlier ones
-                    transformations.set(`${position.row},${position.col}`, symbol);
-                });
+        if (surgeSymbols.length === 0) {
+            return false;
+        }
+        
+        console.log(`🌈 Found ${surgeSymbols.length} SURGE symbols - triggering SIMULTANEOUSLY`);
+        await this.showSpecialSymbolsActivation(surgeSymbols);
+        
+        const transformations = new Map();
+        surgeSymbols.forEach(({row, col}) => {
+            console.log(`🌈 Surge at [${row},${col}] transforming adjacent`);
+            const transforms = this.grid.specialHandler.getSurgeEffectTransformations({row, col});
+            transforms.forEach(({position, symbol}) => {
+                transformations.set(`${position.row},${position.col}`, symbol);
             });
-            
-            // Apply all Surge effects at once
-            if (transformations.size > 0) {
-                await this.applySurgeEffects(transformations);
-                effectsTriggered = true;
+        });
+        
+        // Apply all Surge effects at once
+        await this.applySurgeEffects(transformations);
+        return true;
+    }
+    
+    // Process all Slash symbols as a group
+    async processSlashSymbols() {
+        const slashSymbols = [];
+        
+        // Find all Slash symbols on the grid
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                const symbol = this.grid.grid[row][col];
+                if (symbol && symbol.id === 'slash') {
+                    slashSymbols.push({row, col, symbol});
+                }
             }
         }
         
-        // PRIORITY 3: All Slash symbols trigger together
-        if (slashSymbols.length > 0) {
-            console.log(`⚔️ ${slashSymbols.length} SLASH symbols triggering SIMULTANEOUSLY`);
-            await this.showSpecialSymbolsActivation(slashSymbols);
-            
-            const eliminatedPositions = new Set();
-            slashSymbols.forEach(({row, col}) => {
-                console.log(`⚔️ Slash at [${row},${col}] eliminating cross`);
-                const positions = this.grid.specialHandler.getSlashEffectPositions({row, col});
-                positions.forEach(pos => eliminatedPositions.add(`${pos.row},${pos.col}`));
-            });
-            
-            // Apply all Slash effects at once
-            if (eliminatedPositions.size > 0) {
-                await this.applySlashEffects(eliminatedPositions);
-                effectsTriggered = true;
-            }
+        if (slashSymbols.length === 0) {
+            return false;
         }
         
-        console.log(`✅ Special effects processing complete. Effects triggered: ${effectsTriggered}`);
-        return effectsTriggered;
+        console.log(`⚔️ Found ${slashSymbols.length} SLASH symbols - triggering SIMULTANEOUSLY`);
+        await this.showSpecialSymbolsActivation(slashSymbols);
+        
+        const eliminatedPositions = new Set();
+        slashSymbols.forEach(({row, col}) => {
+            console.log(`⚔️ Slash at [${row},${col}] eliminating cross`);
+            const positions = this.grid.specialHandler.getSlashEffectPositions({row, col});
+            positions.forEach(pos => eliminatedPositions.add(`${pos.row},${pos.col}`));
+        });
+        
+        // Apply all Slash effects at once
+        await this.applySlashEffects(eliminatedPositions);
+        return true;
     }
     
     // Show all special symbols activating simultaneously with visual effects
