@@ -1398,12 +1398,11 @@ export class CS2GridGame {
                     await new Promise(resolve => setTimeout(resolve, 1));
                 }
                 
-                // Reset for clean test
-                this.grid.resetGrid();
+                // No need to reset actual grid for virtual simulation
                 this.currentSpinWinAmount = 0;
                 
-                // Simulate a spin without UI animations
-                const spinResult = await this.simulateSpinForRTP();
+                // Simulate a spin without UI animations (completely pure calculation)
+                const spinResult = this.simulateSpinForRTP();
                 
                 testResults.totalBet += this.betAmount;
                 testResults.totalWin += spinResult.totalWin;
@@ -1488,8 +1487,8 @@ export class CS2GridGame {
         }
     }
     
-    // Simulate a single spin for RTP testing (without animations)
-    async simulateSpinForRTP() {
+    // Simulate a single spin for RTP testing (completely without animations/UI)
+    simulateSpinForRTP() {
         const result = {
             totalWin: 0,
             clusters: [],
@@ -1497,8 +1496,8 @@ export class CS2GridGame {
             evaluationCycles: 0
         };
         
-        // Generate initial grid
-        this.grid.resetGrid();
+        // Create a pure virtual grid (no DOM interaction)
+        const virtualGrid = this.createVirtualGrid();
         
         // Keep evaluating until no more wins or effects
         let evaluationCount = 0;
@@ -1507,7 +1506,7 @@ export class CS2GridGame {
             result.evaluationCycles = evaluationCount;
             
             // Find clusters and calculate wins
-            const clusters = this.grid.findClusters();
+            const clusters = this.findClustersInVirtualGrid(virtualGrid);
             if (clusters && clusters.length > 0) {
                 let cycleWin = 0;
                 clusters.forEach(cluster => {
@@ -1521,11 +1520,11 @@ export class CS2GridGame {
                 result.totalWin += cycleWin;
                 result.clusters.push(...clusters);
                 
-                // Remove winning symbols and cascade
-                this.simulateCascadeForRTP(clusters);
+                // Remove winning symbols and cascade in virtual grid
+                this.cascadeVirtualGrid(virtualGrid, clusters);
             } else {
                 // No more wins, check for special effects
-                const hasSpecialEffects = await this.simulateSpecialEffectsForRTP();
+                const hasSpecialEffects = this.processSpecialEffectsInVirtualGrid(virtualGrid);
                 if (hasSpecialEffects) {
                     result.specialSymbolsTriggered++;
                     continue; // Continue evaluation after special effects
@@ -1694,5 +1693,345 @@ export class CS2GridGame {
         
         // Cascade after removal
         this.simulateCascadeForRTP([]);
+    }
+    
+    // Create virtual grid for pure calculation (no DOM)
+    createVirtualGrid() {
+        const virtualGrid = Array(7).fill(null).map(() => Array(7).fill(null));
+        let goldenSymbolPlaced = false;
+        
+        // Fill grid with symbols
+        for (let row = 0; row < 7; row++) {
+            for (let col = 0; col < 7; col++) {
+                let newSymbol;
+                
+                // Check for special symbol (using same probability logic)
+                if (Math.random() < 0.012) { // 1.2% chance
+                    const specialWeights = [
+                        { symbol: 'rush', weight: 40 },
+                        { symbol: 'surge', weight: 30 },
+                        { symbol: 'slash', weight: 30 }
+                    ];
+                    
+                    const totalWeight = specialWeights.reduce((sum, item) => sum + item.weight, 0);
+                    let random = Math.random() * totalWeight;
+                    
+                    for (const item of specialWeights) {
+                        random -= item.weight;
+                        if (random <= 0) {
+                            newSymbol = SPECIAL_SYMBOLS[item.symbol.toUpperCase()];
+                            break;
+                        }
+                    }
+                    
+                    // Check golden symbol restriction
+                    const isGoldenSymbol = newSymbol.id === 'rush' || newSymbol.id === 'multiplier';
+                    if (isGoldenSymbol && goldenSymbolPlaced) {
+                        newSymbol = this.getRandomRegularSymbol();
+                    } else if (isGoldenSymbol) {
+                        goldenSymbolPlaced = true;
+                    }
+                } else {
+                    newSymbol = this.getRandomRegularSymbol();
+                }
+                
+                virtualGrid[row][col] = newSymbol;
+            }
+        }
+        
+        return virtualGrid;
+    }
+    
+    // Get random regular symbol based on weights
+    getRandomRegularSymbol() {
+        const weights = [
+            { symbol: SYMBOLS.FLASHBANG, weight: 20 },
+            { symbol: SYMBOLS.SMOKE, weight: 20 },
+            { symbol: SYMBOLS.HE_GRENADE, weight: 18 },
+            { symbol: SYMBOLS.KEVLAR, weight: 15 },
+            { symbol: SYMBOLS.DEFUSE_KIT, weight: 12 },
+            { symbol: SYMBOLS.DEAGLE, weight: 8 },
+            { symbol: SYMBOLS.AK47, weight: 5 },
+            { symbol: SYMBOLS.AWP, weight: 2 }
+        ];
+        
+        const totalWeight = weights.reduce((sum, item) => sum + item.weight, 0);
+        let random = Math.random() * totalWeight;
+        
+        for (const item of weights) {
+            random -= item.weight;
+            if (random <= 0) {
+                return item.symbol;
+            }
+        }
+        
+        return weights[0].symbol; // Fallback
+    }
+    
+    // Find clusters in virtual grid (pure calculation)
+    findClustersInVirtualGrid(virtualGrid) {
+        const clusters = [];
+        
+        // Find clusters for each regular symbol type separately
+        for (let row = 0; row < 7; row++) {
+            for (let col = 0; col < 7; col++) {
+                if (virtualGrid[row] && virtualGrid[row][col]) {
+                    const currentSymbol = virtualGrid[row][col];
+                    
+                    // Only use regular symbols as starting points
+                    if (currentSymbol.isWild || this.isSpecialSymbolId(currentSymbol.id)) {
+                        continue;
+                    }
+                    
+                    // Create fresh visited array for each starting symbol
+                    const visited = Array(7).fill(null).map(() => Array(7).fill(false));
+                    
+                    // Use DFS with wilds
+                    const cluster = this.dfsVirtualGrid(virtualGrid, row, col, currentSymbol.id, visited);
+                    if (cluster && cluster.length >= 5) {
+                        // Check for overlapping clusters of same type
+                        const existingCluster = clusters.find(c => 
+                            c.symbol.id === currentSymbol.id && 
+                            c.positions.some(pos => 
+                                cluster.some(newPos => 
+                                    pos.row === newPos.row && pos.col === newPos.col
+                                )
+                            )
+                        );
+                        
+                        if (!existingCluster) {
+                            clusters.push({
+                                symbol: currentSymbol,
+                                positions: cluster,
+                                size: cluster.length
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
+        return clusters;
+    }
+    
+    // DFS for virtual grid
+    dfsVirtualGrid(virtualGrid, row, col, symbolId, visited) {
+        if (row < 0 || row >= 7 || col < 0 || col >= 7 || visited[row][col]) {
+            return [];
+        }
+        
+        const currentSymbol = virtualGrid[row][col];
+        // Only match exact symbolId or Wild symbols, exclude special symbols
+        if (!currentSymbol || 
+            (currentSymbol.id !== symbolId && !currentSymbol.isWild) ||
+            (currentSymbol.id !== symbolId && this.isSpecialSymbolId(currentSymbol.id))) {
+            return [];
+        }
+        
+        visited[row][col] = true;
+        const positions = [{row, col}];
+        
+        // Check all 4 directions
+        const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+        for (const [dr, dc] of directions) {
+            positions.push(...this.dfsVirtualGrid(virtualGrid, row + dr, col + dc, symbolId, visited));
+        }
+        
+        return positions;
+    }
+    
+    // Cascade virtual grid after removing clusters
+    cascadeVirtualGrid(virtualGrid, clusters) {
+        // Remove winning symbols
+        clusters.forEach(cluster => {
+            cluster.positions.forEach(pos => {
+                virtualGrid[pos.row][pos.col] = null;
+            });
+        });
+        
+        // Cascade and fill
+        for (let col = 0; col < 7; col++) {
+            // Move existing symbols down
+            let writePos = 6; // Bottom row
+            for (let row = 6; row >= 0; row--) {
+                if (virtualGrid[row][col] !== null) {
+                    if (row !== writePos) {
+                        virtualGrid[writePos][col] = virtualGrid[row][col];
+                        virtualGrid[row][col] = null;
+                    }
+                    writePos--;
+                }
+            }
+            
+            // Fill empty spaces with new symbols
+            for (let row = writePos; row >= 0; row--) {
+                let newSymbol;
+                if (Math.random() < 0.012) { // 1.2% special symbol chance
+                    const specialWeights = [
+                        { symbol: 'rush', weight: 40 },
+                        { symbol: 'surge', weight: 30 },
+                        { symbol: 'slash', weight: 30 }
+                    ];
+                    
+                    const totalWeight = specialWeights.reduce((sum, item) => sum + item.weight, 0);
+                    let random = Math.random() * totalWeight;
+                    
+                    for (const item of specialWeights) {
+                        random -= item.weight;
+                        if (random <= 0) {
+                            newSymbol = SPECIAL_SYMBOLS[item.symbol.toUpperCase()];
+                            break;
+                        }
+                    }
+                } else {
+                    newSymbol = this.getRandomRegularSymbol();
+                }
+                
+                virtualGrid[row][col] = newSymbol;
+            }
+        }
+    }
+    
+    // Process special effects in virtual grid
+    processSpecialEffectsInVirtualGrid(virtualGrid) {
+        const rushPositions = [];
+        const surgePositions = [];
+        const slashPositions = [];
+        
+        // Find special symbols
+        for (let row = 0; row < 7; row++) {
+            for (let col = 0; col < 7; col++) {
+                const symbol = virtualGrid[row][col];
+                if (symbol) {
+                    if (symbol.id === 'rush') rushPositions.push({row, col});
+                    else if (symbol.id === 'surge') surgePositions.push({row, col});
+                    else if (symbol.id === 'slash') slashPositions.push({row, col});
+                }
+            }
+        }
+        
+        // Apply effects in priority order
+        if (rushPositions.length > 0) {
+            rushPositions.forEach(pos => {
+                this.applyRushEffectVirtual(virtualGrid, pos);
+            });
+            return true;
+        }
+        
+        if (surgePositions.length > 0) {
+            surgePositions.forEach(pos => {
+                this.applySurgeEffectVirtual(virtualGrid, pos);
+            });
+            return true;
+        }
+        
+        if (slashPositions.length > 0) {
+            slashPositions.forEach(pos => {
+                this.applySlashEffectVirtual(virtualGrid, pos);
+            });
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Apply Rush effect in virtual grid
+    applyRushEffectVirtual(virtualGrid, position) {
+        const wildCount = Math.floor(Math.random() * 8) + 4; // 4-11 wilds
+        const validPositions = [];
+        
+        for (let row = 0; row < 7; row++) {
+            for (let col = 0; col < 7; col++) {
+                const currentSymbol = virtualGrid[row][col];
+                if (currentSymbol && !this.isSpecialSymbolId(currentSymbol.id)) {
+                    validPositions.push({row, col});
+                }
+            }
+        }
+        
+        const shuffled = validPositions.sort(() => Math.random() - 0.5);
+        const selectedPositions = shuffled.slice(0, Math.min(wildCount, shuffled.length));
+        
+        // Transform Rush to Wild
+        virtualGrid[position.row][position.col] = {
+            id: 'wild', name: 'Wild', icon: '💠', color: '#FFD700', isWild: true
+        };
+        
+        // Place Wild symbols
+        selectedPositions.forEach(pos => {
+            virtualGrid[pos.row][pos.col] = {
+                id: 'wild', name: 'Wild', icon: '💠', color: '#FFD700', isWild: true
+            };
+        });
+    }
+    
+    // Apply Surge effect in virtual grid
+    applySurgeEffectVirtual(virtualGrid, position) {
+        const availableSymbols = [
+            SYMBOLS.FLASHBANG, SYMBOLS.SMOKE, SYMBOLS.HE_GRENADE, SYMBOLS.KEVLAR,
+            SYMBOLS.DEFUSE_KIT, SYMBOLS.DEAGLE, SYMBOLS.AK47, SYMBOLS.AWP
+        ];
+        const targetSymbol = availableSymbols[Math.floor(Math.random() * availableSymbols.length)];
+        
+        // Transform Surge symbol itself
+        virtualGrid[position.row][position.col] = targetSymbol;
+        
+        // Transform adjacent symbols
+        const adjacentPositions = this.getAdjacentPositionsVirtual(position.row, position.col);
+        adjacentPositions.forEach(pos => {
+            const currentSymbol = virtualGrid[pos.row][pos.col];
+            if (currentSymbol && !this.isSpecialSymbolId(currentSymbol.id)) {
+                virtualGrid[pos.row][pos.col] = targetSymbol;
+            }
+        });
+    }
+    
+    // Apply Slash effect in virtual grid  
+    applySlashEffectVirtual(virtualGrid, position) {
+        const {row, col} = position;
+        
+        // Remove the slash symbol itself
+        virtualGrid[row][col] = null;
+        
+        // Remove entire row
+        for (let c = 0; c < 7; c++) {
+            if (c !== col) {
+                virtualGrid[row][c] = null;
+            }
+        }
+        
+        // Remove entire column
+        for (let r = 0; r < 7; r++) {
+            if (r !== row) {
+                virtualGrid[r][col] = null;
+            }
+        }
+        
+        // Cascade after removal
+        this.cascadeVirtualGrid(virtualGrid, []);
+    }
+    
+    // Get adjacent positions (8 directions)
+    getAdjacentPositionsVirtual(row, col) {
+        const positions = [];
+        const directions = [
+            [-1, 0], [-1, 1], [0, 1], [1, 1],
+            [1, 0], [1, -1], [0, -1], [-1, -1]
+        ];
+        
+        directions.forEach(([dr, dc]) => {
+            const newRow = row + dr;
+            const newCol = col + dc;
+            if (newRow >= 0 && newRow < 7 && newCol >= 0 && newCol < 7) {
+                positions.push({row: newRow, col: newCol});
+            }
+        });
+        
+        return positions;
+    }
+    
+    // Helper to check if symbol ID is special
+    isSpecialSymbolId(id) {
+        return ['rush', 'surge', 'slash', 'scatter', 'multiplier'].includes(id);
     }
 }
