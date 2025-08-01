@@ -73,6 +73,14 @@ export class CS2GridGame {
             });
         }
         
+        // Add Wild symbol test functionality
+        const testWildButton = document.getElementById('test-wild');
+        if (testWildButton) {
+            testWildButton.addEventListener('click', () => {
+                this.testWildSymbols();
+            });
+        }
+        
         // Paytable modal
         const paytableButton = document.getElementById('toggle-paytable');
         const modal = document.getElementById('paytable-modal');
@@ -1191,5 +1199,78 @@ export class CS2GridGame {
         
         // Start the test
         setTimeout(performTestSpin, 500);
+    }
+    
+    // Test Wild symbols functionality  
+    testWildSymbols() {
+        if (this.isSpinning) {
+            console.log('⚠️ Cannot test Wild symbols - spin in progress');
+            return;
+        }
+        
+        console.log('🧪 Testing Wild symbols - creating test scenario');
+        
+        // Create a test scenario with multiple symbol types and strategically placed Wild symbols
+        // This will test if one Wild can participate in multiple different clusters
+        const testGrid = [
+            ['flashbang', 'flashbang', 'wild', 'smoke', 'smoke', 'smoke', 'kevlar'],
+            ['flashbang', 'flashbang', 'wild', 'smoke', 'deagle', 'deagle', 'kevlar'],
+            ['flashbang', 'wild', 'wild', 'wild', 'deagle', 'deagle', 'kevlar'],
+            ['ak47', 'wild', 'hegrenade', 'hegrenade', 'hegrenade', 'deagle', 'kevlar'],
+            ['ak47', 'ak47', 'hegrenade', 'hegrenade', 'hegrenade', 'awp', 'kevlar'],
+            ['ak47', 'ak47', 'hegrenade', 'defusekit', 'defusekit', 'awp', 'awp'],
+            ['flashbang', 'ak47', 'smoke', 'defusekit', 'defusekit', 'awp', 'awp']
+        ];
+        
+        // Apply the test grid to the game
+        for (let row = 0; row < 7; row++) {
+            for (let col = 0; col < 7; col++) {
+                const symbolId = testGrid[row][col];
+                
+                if (symbolId === 'wild') {
+                    // Create Wild symbol
+                    this.grid.grid[row][col] = {
+                        id: 'wild',
+                        name: 'Wild',
+                        icon: '💠',
+                        color: '#FFD700',
+                        isWild: true
+                    };
+                } else {
+                    // Find regular symbol
+                    const symbol = Object.values(SYMBOLS).find(s => s.id === symbolId);
+                    if (symbol) {
+                        this.grid.grid[row][col] = symbol;
+                    }
+                }
+            }
+        }
+        
+        // Update the visual grid
+        this.grid.updateVisualGrid();
+        
+        // Test cluster finding
+        console.log('🔍 Testing cluster detection with Wild symbols...');
+        const clusters = this.grid.findClusters();
+        
+        console.log(`✅ Found ${clusters.length} clusters in test scenario:`);
+        clusters.forEach((cluster, index) => {
+            console.log(`   ${index + 1}. ${cluster.symbol.name}: ${cluster.size} symbols`);
+        });
+        
+        // Calculate total wins
+        let totalWin = 0;
+        clusters.forEach(cluster => {
+            const symbol = cluster.symbol;
+            const clusterSize = Math.min(cluster.size, 15);
+            const basePayout = symbol.paytable[clusterSize] || symbol.paytable[15] || 0;
+            const win = basePayout * this.betAmount;
+            totalWin += win;
+            console.log(`💰 ${symbol.name} cluster (${clusterSize}): $${win.toFixed(2)}`);
+        });
+        
+        console.log(`🎯 Total test win: $${totalWin.toFixed(2)}`);
+        
+        alert(`Wild Symbol Test Complete!\n\nFound ${clusters.length} clusters\nTotal win: $${totalWin.toFixed(2)}\n\nCheck console for detailed logs.`);
     }
 }

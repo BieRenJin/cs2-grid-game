@@ -134,28 +134,60 @@ export class GameGrid {
     
     findClusters() {
         try {
-            const visited = Array(this.size).fill(null).map(() => Array(this.size).fill(false));
             const clusters = [];
             
+            // Find clusters for each regular symbol type separately
+            // This allows Wild symbols to participate in multiple clusters
             for (let row = 0; row < this.size; row++) {
                 for (let col = 0; col < this.size; col++) {
-                    if (!visited[row][col] && this.grid[row] && this.grid[row][col]) {
+                    if (this.grid[row] && this.grid[row][col]) {
                         const currentSymbol = this.grid[row][col];
                         
-                        // Skip Wild symbols and special symbols as starting points
+                        // Only use regular symbols as starting points (not Wild or special symbols)
                         if (currentSymbol.isWild || this.isSpecialSymbol(currentSymbol)) {
                             continue;
                         }
                         
+                        // Create a fresh visited array for each starting symbol
+                        const visited = Array(this.size).fill(null).map(() => Array(this.size).fill(false));
+                        
                         // Use dfsWithWilds to handle Wild symbols as substitutes
                         const cluster = this.dfsWithWilds(row, col, currentSymbol.id, visited);
                         if (cluster && cluster.length >= 5) {
-                            clusters.push({
-                                symbol: currentSymbol, // Use the original symbol type for payout calculation
-                                positions: cluster,
-                                size: cluster.length
-                            });
-                            console.log(`🎯 Found cluster of ${currentSymbol.name} (${cluster.length} symbols, including wilds)`);
+                            // Check if this cluster overlaps with existing clusters of the same type
+                            const existingCluster = clusters.find(c => 
+                                c.symbol.id === currentSymbol.id && 
+                                c.positions.some(pos => 
+                                    cluster.some(newPos => 
+                                        pos.row === newPos.row && pos.col === newPos.col
+                                    )
+                                )
+                            );
+                            
+                            if (!existingCluster) {
+                                clusters.push({
+                                    symbol: currentSymbol, // Use the original symbol type for payout calculation
+                                    positions: cluster,
+                                    size: cluster.length
+                                });
+                                
+                                // Count Wild symbols in this cluster
+                                const wildCount = cluster.filter(pos => {
+                                    const symbol = this.grid[pos.row][pos.col];
+                                    return symbol && symbol.isWild;
+                                }).length;
+                                
+                                console.log(`🎯 Found cluster of ${currentSymbol.name} (${cluster.length} symbols, ${wildCount} wilds)`);
+                                
+                                if (wildCount > 0) {
+                                    console.log(`💠 Wild symbols in ${currentSymbol.name} cluster at positions:`, 
+                                        cluster.filter(pos => {
+                                            const symbol = this.grid[pos.row][pos.col];
+                                            return symbol && symbol.isWild;
+                                        }).map(pos => `[${pos.row},${pos.col}]`).join(', ')
+                                    );
+                                }
+                            }
                         }
                     }
                 }
@@ -350,7 +382,7 @@ export class GameGrid {
         }
     }
     
-    // Modified cluster finding to handle wild symbols
+    // Modified cluster finding to handle wild symbols  
     dfsWithWilds(row, col, symbolId, visited) {
         if (row < 0 || row >= this.size || col < 0 || col >= this.size ||
             visited[row][col]) {
@@ -363,6 +395,11 @@ export class GameGrid {
             (currentSymbol.id !== symbolId && !currentSymbol.isWild) ||
             (currentSymbol.id !== symbolId && this.isSpecialSymbol(currentSymbol))) {
             return [];
+        }
+        
+        // Log Wild symbol participation
+        if (currentSymbol.isWild) {
+            console.log(`💠 Wild symbol at [${row},${col}] participating in ${symbolId} cluster`);
         }
         
         visited[row][col] = true;
