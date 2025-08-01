@@ -1,13 +1,5 @@
 {
-  "buildCommand": "pnpm build",
-  "outputDirectory": "dist",
   "framework": "vite",
-  "installCommand": "pnpm install",
-  "functions": {},
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ]
+  "buildCommand": "pnpm build",
+  "outputDirectory": "dist"
 }
