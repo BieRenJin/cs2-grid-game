@@ -2,6 +2,8 @@
 
 A CS2-themed 7x7 grid slot game with cluster pays mechanic, inspired by Pixel Farm but featuring Counter-Strike 2 weapons and equipment.
 
+🎮 **Live Demo**: [Play on Vercel](https://cs2-grid-game.vercel.app)
+
 ## Features
 
 - 7x7 grid with cluster pays
