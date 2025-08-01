@@ -19,13 +19,13 @@ export class RTPManager {
             awp: 2
         };
         
-        // Special symbol appearance rates
+        // Special symbol appearance rates - adjusted to be more balanced
         this.specialSymbolRates = {
-            rush: 0.02,      // 2% chance
-            surge: 0.015,    // 1.5% chance
-            slash: 0.015,    // 1.5% chance
-            scatter: 0.005,  // 0.5% base chance
-            multiplier: 0.1  // 10% in free spins only
+            rush: 0.008,     // 0.8% chance (was 2%)
+            surge: 0.006,    // 0.6% chance (was 1.5%)
+            slash: 0.006,    // 0.6% chance (was 1.5%)
+            scatter: 0.003,  // 0.3% base chance (was 0.5%)
+            multiplier: 0.08 // 8% in free spins only (was 10%)
         };
         
         // Bonus feature frequencies

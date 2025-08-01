@@ -106,6 +106,11 @@ export class CS2GridGame {
                     console.log('🧹 Manual force cleanup triggered');
                 }
             }
+            // Add Ctrl+S to show special symbol statistics
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                this.showSpecialSymbolStats();
+            }
         });
         
         closeModal.addEventListener('click', () => {
@@ -1272,5 +1277,27 @@ export class CS2GridGame {
         console.log(`🎯 Total test win: $${totalWin.toFixed(2)}`);
         
         alert(`Wild Symbol Test Complete!\n\nFound ${clusters.length} clusters\nTotal win: $${totalWin.toFixed(2)}\n\nCheck console for detailed logs.`);
+    }
+    
+    // Show special symbol statistics
+    showSpecialSymbolStats() {
+        if (!this.grid.specialHandler) {
+            alert('Special symbol handler not initialized');
+            return;
+        }
+        
+        const stats = this.grid.specialHandler.getStats();
+        const message = `Special Symbol Statistics:\n\n` +
+            `Total Symbols Generated: ${stats.totalSymbolsGenerated}\n` +
+            `Special Symbols Generated: ${stats.specialSymbolsGenerated}\n` +
+            `Actual Rate: ${stats.actualRate} (Target: ${stats.targetRate})\n\n` +
+            `Breakdown:\n` +
+            `⭐ Rush: ${stats.rushCount}\n` +
+            `🌈 Surge: ${stats.surgeCount}\n` +
+            `🗡️ Slash: ${stats.slashCount}\n\n` +
+            `Press Ctrl+S to view again`;
+        
+        alert(message);
+        console.log('📊 Special Symbol Statistics:', stats);
     }
 }

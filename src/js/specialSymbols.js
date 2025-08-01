@@ -4,6 +4,15 @@ import { rtpManager } from './rtp.js';
 export class SpecialSymbolHandler {
     constructor(grid) {
         this.grid = grid;
+        
+        // Statistics tracking for debugging
+        this.stats = {
+            totalSymbolsGenerated: 0,
+            specialSymbolsGenerated: 0,
+            rushCount: 0,
+            surgeCount: 0,
+            slashCount: 0
+        };
     }
     
     // Rush Symbol - CT Badge: Adds 4-11 Wild symbols
@@ -311,20 +320,46 @@ export class SpecialSymbolHandler {
         }, 500);
     }
     
-    // Check if special symbol should appear (based on RTP-controlled probability)
+    // Check if special symbol should appear with balanced probability
     shouldAppearSpecialSymbol() {
-        const rushChance = rtpManager.shouldAppearSpecialSymbol('rush');
-        const surgeChance = rtpManager.shouldAppearSpecialSymbol('surge');
-        const slashChance = rtpManager.shouldAppearSpecialSymbol('slash');
+        this.stats.totalSymbolsGenerated++;
         
-        return rushChance || surgeChance || slashChance;
+        // Total special symbol appearance rate: ~1.2% for better balance
+        const totalSpecialChance = 0.012; // 1.2% total chance for any special symbol
+        // This gives approximately 0.59 special symbols per spin (49 * 0.012)
+        
+        if (Math.random() < totalSpecialChance) {
+            this.stats.specialSymbolsGenerated++;
+            const currentRate = ((this.stats.specialSymbolsGenerated / this.stats.totalSymbolsGenerated) * 100).toFixed(2);
+            console.log(`🎰 Special symbol triggered! (1.2% chance, current rate: ${currentRate}%)`);
+            return true;
+        }
+        return false;
     }
     
-    // Get random special symbol
+    // Get random special symbol with weighted distribution
     getRandomSpecialSymbol() {
-        const specialSymbols = ['rush', 'surge', 'slash'];
-        const randomIndex = Math.floor(Math.random() * specialSymbols.length);
-        return SPECIAL_SYMBOLS[specialSymbols[randomIndex].toUpperCase()];
+        const specialWeights = [
+            { symbol: 'rush', weight: 40 },    // 40% of special symbols (0.8% total)
+            { symbol: 'surge', weight: 30 },   // 30% of special symbols (0.6% total)
+            { symbol: 'slash', weight: 30 }    // 30% of special symbols (0.6% total)
+        ];
+        
+        const totalWeight = specialWeights.reduce((sum, item) => sum + item.weight, 0);
+        let random = Math.random() * totalWeight;
+        
+        for (const item of specialWeights) {
+            random -= item.weight;
+            if (random <= 0) {
+                // Update statistics
+                this.stats[item.symbol + 'Count']++;
+                console.log(`⭐ Selected special symbol: ${item.symbol} (Total: Rush=${this.stats.rushCount}, Surge=${this.stats.surgeCount}, Slash=${this.stats.slashCount})`);
+                return SPECIAL_SYMBOLS[item.symbol.toUpperCase()];
+            }
+        }
+        
+        // Fallback
+        return SPECIAL_SYMBOLS.RUSH;
     }
     
     // NEW: Collection methods for simultaneous effects
@@ -413,5 +448,33 @@ export class SpecialSymbolHandler {
         
         console.log(`⚔️ Slash will eliminate ${eliminatedPositions.length} positions including itself`);
         return eliminatedPositions;
+    }
+    
+    // Get special symbol statistics  
+    getStats() {
+        const rate = this.stats.totalSymbolsGenerated > 0 ? 
+            ((this.stats.specialSymbolsGenerated / this.stats.totalSymbolsGenerated) * 100).toFixed(2) : '0.00';
+        
+        return {
+            totalSymbolsGenerated: this.stats.totalSymbolsGenerated,
+            specialSymbolsGenerated: this.stats.specialSymbolsGenerated,
+            actualRate: rate + '%',
+            targetRate: '1.2%',
+            rushCount: this.stats.rushCount,
+            surgeCount: this.stats.surgeCount,
+            slashCount: this.stats.slashCount
+        };
+    }
+    
+    // Reset statistics
+    resetStats() {
+        this.stats = {
+            totalSymbolsGenerated: 0,
+            specialSymbolsGenerated: 0,
+            rushCount: 0,
+            surgeCount: 0,
+            slashCount: 0
+        };
+        console.log('📊 Special symbol statistics reset');
     }
 }
