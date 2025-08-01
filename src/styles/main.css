@@ -213,6 +213,189 @@ body {
     }
 }
 
+/* Enhanced winning animations for better user feedback */
+@keyframes winningFlash {
+    0%, 100% {
+        background-color: rgba(255, 215, 0, 0.3);
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    25% {
+        background-color: rgba(255, 255, 255, 0.7);
+        transform: scale(1.05);
+        filter: brightness(1.8);
+    }
+    50% {
+        background-color: rgba(255, 215, 0, 0.8);
+        transform: scale(1.1);
+        filter: brightness(2);
+    }
+    75% {
+        background-color: rgba(255, 255, 255, 0.6);
+        transform: scale(1.05);
+        filter: brightness(1.5);
+    }
+}
+
+@keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700, 0 0 15px #FFD700;
+        border-color: #FFD700;
+        opacity: 1;
+    }
+    50% {
+        box-shadow: 0 0 10px #FFD700, 0 0 20px #FFD700, 0 0 30px #FFD700, 0 0 40px #FFD700;
+        border-color: #FFFF00;
+        opacity: 0.8;
+    }
+    100% {
+        box-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700, 0 0 15px #FFD700;
+        border-color: #FFD700;
+        opacity: 1;
+    }
+}
+
+.winning-flash {
+    animation: winningFlash 0.4s ease-in-out 3;
+    border: 2px solid #FFD700 !important;
+    position: relative;
+    z-index: 5;
+    animation-fill-mode: forwards;
+}
+
+/* New elimination animation styles */
+.elimination-highlight {
+    animation: eliminationHighlight 0.4s ease-in-out 3;
+    border: 3px solid #FF0000 !important;
+    position: relative;
+    z-index: 100;
+    animation-fill-mode: forwards;
+}
+
+@keyframes eliminationHighlight {
+    0%, 100% {
+        background-color: rgba(255, 0, 0, 0.3);
+        transform: scale(1);
+        filter: brightness(1.2);
+    }
+    50% {
+        background-color: rgba(255, 255, 255, 0.8);
+        transform: scale(1.05);
+        filter: brightness(2);
+    }
+}
+
+@keyframes eliminationPulse {
+    0% {
+        border-color: #FF0000;
+        box-shadow: 0 0 10px #FF0000;
+        opacity: 1;
+    }
+    50% {
+        border-color: #FF6666;
+        box-shadow: 0 0 20px #FF0000, 0 0 30px #FF0000;
+        opacity: 0.8;
+    }
+    100% {
+        border-color: #FF0000;
+        box-shadow: 0 0 10px #FF0000;
+        opacity: 1;
+    }
+}
+
+/* Empty cell styling - completely invisible for better visual effect */
+.empty-cell {
+    position: relative;
+    background: transparent !important;
+    border: none !important;
+    opacity: 0 !important;
+}
+
+/* Empty cell during elimination animation - visible with pulsing dot */
+.empty-cell.elimination-empty {
+    opacity: 1 !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 2px dashed rgba(255, 255, 255, 0.4) !important;
+    border-radius: 8px;
+}
+
+.empty-cell.elimination-empty::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: emptyPulse 1s ease-in-out infinite;
+}
+
+@keyframes emptyPulse {
+    0%, 100% {
+        opacity: 0.3;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
+}
+
+/* Fixed finite animation for empty cell pulse */
+.empty-cell-finite-pulse {
+    animation: emptyPulse 0.8s ease-in-out 3;
+    animation-fill-mode: forwards;
+}
+
+/* Landing impact animation */
+@keyframes landingImpact {
+    0% {
+        transform: scale(1);
+    }
+    30% {
+        transform: scale(1.1) scaleY(0.9);
+    }
+    60% {
+        transform: scale(0.95) scaleY(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Temporary empty cell styling */
+.temp-empty {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px dotted rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Dust particle animation for landing effects */
+@keyframes dustFly {
+    0% {
+        opacity: 0.8;
+        transform: scale(1) translateY(0px);
+    }
+    50% {
+        opacity: 0.4;
+        transform: scale(1.5) translateY(-15px);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.5) translateY(-25px);
+    }
+}
+
+.dust-particle {
+    z-index: 1001;
+}
+
+/* Enhanced physics-based dropping effects */
+.grid-cell {
+    will-change: transform;
+}
+
 .symbol-drop {
     animation: symbolDrop 0.5s ease-out;
 }
@@ -411,7 +594,8 @@ body {
 
 .wild-symbol {
     background: radial-gradient(circle, #FFD700, #FFA500) !important;
-    animation: wildPulse 1s ease-in-out infinite;
+    animation: wildPulse 1s ease-in-out 5;
+    animation-fill-mode: forwards;
 }
 
 @keyframes wildPulse {
@@ -425,6 +609,18 @@ body {
     }
 }
 
+/* Animation indicator pulse */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.02);
+    }
+}
+
 /* Free spins UI */
 .free-spins-indicator {
     position: absolute;
@@ -435,7 +631,8 @@ body {
     border-radius: 25px;
     font-weight: bold;
     font-size: 1.2rem;
-    animation: freeSpinGlow 2s ease-in-out infinite;
+    animation: freeSpinGlow 2s ease-in-out 10;
+    animation-fill-mode: forwards;
 }
 
 @keyframes freeSpinGlow {

@@ -18,10 +18,52 @@ const SYMBOL_IMAGES = {
 export function getSymbolDisplay(symbol) {
     const imagePath = SYMBOL_IMAGES[symbol.id];
     if (imagePath) {
-        return `<img src="${imagePath}" alt="${symbol.name}" class="symbol-image" onerror="this.style.display='none'; this.nextSibling.style.display='inline';" /><span style="display:none;">${symbol.icon}</span>`;
+        return `<img src="${imagePath}" alt="${symbol.name}" class="symbol-image" onerror="handleImageError(this)" /><span style="display:none;">${symbol.icon}</span>`;
     }
     return symbol.icon;
 }
+
+// Safe image error handler
+window.handleImageError = function(img) {
+    try {
+        if (!img || !img.parentNode) {
+            console.warn('Image element not found or already removed');
+            return;
+        }
+        
+        // Hide the failed image
+        img.style.display = 'none';
+        
+        // Show emoji fallback if it exists
+        let fallbackSpan = img.nextSibling;
+        let attempts = 0;
+        
+        // Try to find the fallback span within reasonable range
+        while (fallbackSpan && attempts < 3) {
+            if (fallbackSpan.nodeType === 1 && fallbackSpan.tagName === 'SPAN') {
+                fallbackSpan.style.display = 'inline';
+                console.log('🔄 Switched to emoji fallback for failed image');
+                return;
+            }
+            fallbackSpan = fallbackSpan.nextSibling;
+            attempts++;
+        }
+        
+        // If no fallback found, add one
+        const parent = img.parentNode;
+        if (parent) {
+            const fallback = document.createElement('span');
+            fallback.textContent = '❓'; // Default fallback
+            fallback.style.display = 'inline';
+            parent.appendChild(fallback);
+            console.log('📝 Added default fallback for failed image');
+        }
+        
+    } catch (error) {
+        console.error('Error handling image fallback:', error);
+        // Completely fail silently to prevent cascading errors
+    }
+};
 
 // Preload all symbol images
 export function preloadSymbolImages() {

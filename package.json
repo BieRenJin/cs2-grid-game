@@ -8,11 +8,24 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "keywords": ["cs2", "game", "slot", "grid"],
+  "keywords": [
+    "cs2",
+    "game",
+    "slot",
+    "grid"
+  ],
   "author": "",
   "license": "ISC",
   "description": "CS2-themed 7x7 grid slot game with cluster pays",
   "devDependencies": {
-    "vite": "^5.0.0"
-  }
+    "vite": "^5.4.19"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BieRenJin/cs2-grid-game.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BieRenJin/cs2-grid-game/issues"
+  },
+  "homepage": "https://github.com/BieRenJin/cs2-grid-game#readme"
 }

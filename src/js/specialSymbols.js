@@ -12,15 +12,22 @@ export class SpecialSymbolHandler {
         const positions = this.getRandomEmptyPositions(wildCount);
         
         positions.forEach(({row, col}) => {
-            // Create a wild symbol that matches any adjacent symbol
-            this.grid.grid[row][col] = {
-                id: 'wild',
-                name: 'Wild',
-                icon: '💠',
-                color: '#FFD700',
-                isWild: true
-            };
-            this.grid.updateCell(row, col, this.grid.grid[row][col]);
+            // Safety check for valid grid position
+            if (this.grid.grid[row] && this.grid.grid[row][col] !== undefined) {
+                // Create a wild symbol that matches any adjacent symbol
+                this.grid.grid[row][col] = {
+                    id: 'wild',
+                    name: 'Wild',
+                    icon: '💠',
+                    color: '#FFD700',
+                    isWild: true
+                };
+                // Use safe content setting instead of direct updateCell
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (cell && this.grid.animations) {
+                    this.grid.animations.setCellContentSafely(cell, this.grid.grid[row][col]);
+                }
+            }
             
             // Add animation effect
             const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
@@ -43,9 +50,15 @@ export class SpecialSymbolHandler {
         // Transform all adjacent cells
         const adjacentPositions = this.getAdjacentPositions(row, col);
         adjacentPositions.forEach(({row: r, col: c}) => {
-            if (this.grid.grid[r][c].id !== targetSymbol.id) {
+            // Check if grid position exists and has a symbol
+            if (this.grid.grid[r] && this.grid.grid[r][c] && 
+                this.grid.grid[r][c].id !== targetSymbol.id) {
                 this.grid.grid[r][c] = targetSymbol;
-                this.grid.updateCell(r, c, targetSymbol);
+                // Use safe content setting instead of direct updateCell
+                const targetCell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+                if (targetCell && this.grid.animations) {
+                    this.grid.animations.setCellContentSafely(targetCell, targetSymbol);
+                }
                 transformedPositions.push({row: r, col: c});
                 
                 // Add rainbow animation
@@ -64,38 +77,76 @@ export class SpecialSymbolHandler {
     }
     
     // Slash Symbol - Karambit: Removes horizontal and vertical lines
-    applySlashEffect(position) {
+    async applySlashEffect(position) {
+        // Wait for any active animations before applying special effects
+        if (this.grid.animations && this.grid.animations.isAnimationActive()) {
+            console.log('⚠️ Waiting for animations to complete before slash effect');
+            await this.grid.animations.waitForAnimationsComplete();
+        }
+        
         const {row, col} = position;
         const removedPositions = [];
         
-        // Remove entire row and column
+        // Remove entire row and column (but not the slash symbol itself)
         for (let c = 0; c < this.grid.size; c++) {
-            if (c !== col) {
+            if (c !== col && this.grid.grid[row] && this.grid.grid[row][c]) {
                 removedPositions.push({row, col: c});
             }
         }
         
         for (let r = 0; r < this.grid.size; r++) {
-            if (r !== row) {
+            if (r !== row && this.grid.grid[r] && this.grid.grid[r][col]) {
                 removedPositions.push({row: r, col});
             }
         }
         
-        // Animate the slash effect
+        if (removedPositions.length === 0) {
+            console.log('🔪 No symbols to slash');
+            return removedPositions;
+        }
+        
+        console.log(`🔪 Slash effect removing ${removedPositions.length} symbols`);
+        
+        // Create fake clusters for the 4-phase animation system
+        const slashClusters = [{
+            symbol: { name: 'Slash Effect', id: 'slash-effect' },
+            positions: removedPositions,
+            size: removedPositions.length
+        }];
+        
+        // First show the slash lines animation
         this.animateSlash(row, col);
         
-        // Mark positions for removal
-        removedPositions.forEach(({row: r, col: c}) => {
-            this.grid.grid[r][c] = null;
-        });
-        
-        // Trigger cascade for affected columns
-        const affectedColumns = new Set();
-        removedPositions.forEach(({col: c}) => affectedColumns.add(c));
-        
-        setTimeout(() => {
-            affectedColumns.forEach(c => this.grid.cascadeColumn(c));
-        }, 500);
+        // Wait for slash animation to complete, then use 4-phase system
+        setTimeout(async () => {
+            try {
+                // Use the same 4-phase animation as normal clusters
+                if (this.grid.animations) {
+                    await this.grid.animations.animateRemoval(slashClusters);
+                    
+                    // After removal animation, cascade the affected columns
+                    const movements = [];
+                    const newSymbols = [];
+                    
+                    // Calculate movements and new symbols for affected columns
+                    const affectedColumns = new Set();
+                    removedPositions.forEach(({col: c}) => affectedColumns.add(c));
+                    
+                    affectedColumns.forEach(colIndex => {
+                        const columnResult = this.grid.calculateColumnCascade(colIndex);
+                        movements.push(...columnResult.movements);
+                        newSymbols.push(...columnResult.newSymbols);
+                    });
+                    
+                    // Animate the cascade
+                    if (movements.length > 0 || newSymbols.length > 0) {
+                        this.grid.animations.animateCascade(movements, newSymbols);
+                    }
+                }
+            } catch (error) {
+                console.error('Error in slash effect animation:', error);
+            }
+        }, 600); // Wait for slash lines to finish
         
         return removedPositions;
     }
@@ -139,9 +190,12 @@ export class SpecialSymbolHandler {
         const symbolCounts = {};
         
         adjacentPositions.forEach(({row: r, col: c}) => {
-            const symbol = this.grid.grid[r][c];
-            if (symbol && !symbol.isWild) {
-                symbolCounts[symbol.id] = (symbolCounts[symbol.id] || 0) + 1;
+            // Check if grid position exists and has a symbol
+            if (this.grid.grid[r] && this.grid.grid[r][c]) {
+                const symbol = this.grid.grid[r][c];
+                if (symbol && !symbol.isWild) {
+                    symbolCounts[symbol.id] = (symbolCounts[symbol.id] || 0) + 1;
+                }
             }
         });
         
@@ -151,11 +205,15 @@ export class SpecialSymbolHandler {
         Object.entries(symbolCounts).forEach(([symbolId, count]) => {
             if (count > maxCount) {
                 maxCount = count;
-                mostCommonSymbol = this.grid.grid[adjacentPositions.find(
-                    ({row: r, col: c}) => this.grid.grid[r][c].id === symbolId
-                ).row][adjacentPositions.find(
-                    ({row: r, col: c}) => this.grid.grid[r][c].id === symbolId
-                ).col];
+                // Find the first adjacent position with this symbol ID
+                const position = adjacentPositions.find(({row: r, col: c}) => {
+                    return this.grid.grid[r] && this.grid.grid[r][c] && 
+                           this.grid.grid[r][c].id === symbolId;
+                });
+                
+                if (position) {
+                    mostCommonSymbol = this.grid.grid[position.row][position.col];
+                }
             }
         });
         
@@ -212,5 +270,57 @@ export class SpecialSymbolHandler {
         const specialSymbols = ['rush', 'surge', 'slash'];
         const randomIndex = Math.floor(Math.random() * specialSymbols.length);
         return SPECIAL_SYMBOLS[specialSymbols[randomIndex].toUpperCase()];
+    }
+    
+    // NEW: Collection methods for simultaneous effects
+    
+    // Get positions where Rush effect will add wilds (without applying)
+    getRushEffectPositions(position) {
+        const wildCount = Math.floor(Math.random() * 8) + 4; // 4-11 wilds
+        return this.getRandomEmptyPositions(wildCount);
+    }
+    
+    // Get transformations that Surge effect will cause (without applying)
+    getSurgeEffectTransformations(position) {
+        const {row, col} = position;
+        const transformations = [];
+        const targetSymbol = this.getMostCommonAdjacentSymbol(row, col);
+        
+        if (!targetSymbol) return transformations;
+        
+        // Get all adjacent positions that will be transformed
+        const adjacentPositions = this.getAdjacentPositions(row, col);
+        adjacentPositions.forEach(({row: r, col: c}) => {
+            if (this.grid.grid[r] && this.grid.grid[r][c] && 
+                this.grid.grid[r][c].id !== targetSymbol.id) {
+                transformations.push({
+                    position: {row: r, col: c},
+                    symbol: targetSymbol
+                });
+            }
+        });
+        
+        return transformations;
+    }
+    
+    // Get positions that Slash effect will eliminate (without applying)
+    getSlashEffectPositions(position) {
+        const {row, col} = position;
+        const eliminatedPositions = [];
+        
+        // Remove entire row and column (but not the slash symbol itself)
+        for (let c = 0; c < this.grid.size; c++) {
+            if (c !== col && this.grid.grid[row] && this.grid.grid[row][c]) {
+                eliminatedPositions.push({row, col: c});
+            }
+        }
+        
+        for (let r = 0; r < this.grid.size; r++) {
+            if (r !== row && this.grid.grid[r] && this.grid.grid[r][col]) {
+                eliminatedPositions.push({row: r, col});
+            }
+        }
+        
+        return eliminatedPositions;
     }
 }

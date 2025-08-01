@@ -23,6 +23,10 @@ export class CS2GridGame {
         this.initializeElements();
         this.updateUI();
         this.addSoundToggle();
+        
+        // Initialize deadlock detection
+        this.initDeadlockDetection();
+        
         // Initialize symbol images
         console.log('🎮 CS2 Grid Game starting...');
         initializeSymbolImages();
@@ -61,6 +65,14 @@ export class CS2GridGame {
             this.showBonusBuyOptions();
         });
         
+        // Add auto-test functionality
+        const autoTestButton = document.getElementById('auto-test');
+        if (autoTestButton) {
+            autoTestButton.addEventListener('click', () => {
+                this.runAutoTest();
+            });
+        }
+        
         // Paytable modal
         const paytableButton = document.getElementById('toggle-paytable');
         const modal = document.getElementById('paytable-modal');
@@ -72,11 +84,19 @@ export class CS2GridGame {
             modal.classList.add('show');
         });
         
-        // Add keyboard shortcut for RTP stats (Ctrl+R)
+        // Add keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'r') {
                 e.preventDefault();
                 this.showRTPStats();
+            }
+            // Add Ctrl+C to clear yellow effects for debugging
+            if (e.ctrlKey && e.key === 'c') {
+                e.preventDefault();
+                if (this.grid.animations) {
+                    this.grid.animations.forceCleanup();
+                    console.log('🧹 Manual force cleanup triggered');
+                }
             }
         });
         
@@ -102,8 +122,9 @@ export class CS2GridGame {
             this.betAmountElement.textContent = this.betAmount.toFixed(2);
             this.betInput.value = this.betAmount.toFixed(2);
             
-            // Disable spin if insufficient balance
-            this.spinButton.disabled = this.isSpinning || this.balance < this.betAmount;
+            // Disable spin if insufficient balance or animations playing
+            const animationsActive = this.grid.animations && this.grid.animations.isAnimationActive();
+            this.spinButton.disabled = this.isSpinning || this.balance < this.betAmount || animationsActive;
             
             // Update RTP display if exists
             this.updateRTPDisplay();
@@ -113,118 +134,311 @@ export class CS2GridGame {
     }
     
     async spin() {
-        if (this.isSpinning || this.balance < this.betAmount) {
-            console.log('⚠️ Cannot spin - already spinning or insufficient balance');
-            return;
-        }
-        
-        console.log('🎰 Starting new spin...');
-        this.isSpinning = true;
-        this.spinButton.disabled = true;
-        
-        // Deduct bet from balance
-        if (this.freeSpinsRemaining === 0) {
-            this.balance -= this.betAmount;
-            this.updateUI();
-        }
-        
-        // Reset win amount
-        this.winAmountElement.textContent = '0.00';
-        
-        // Play spin sound
-        this.soundManager.play('spin');
-        
-        // Add spin animation to cells
-        document.querySelectorAll('.grid-cell').forEach(cell => {
-            cell.classList.add('spin-animation');
-        });
-        
-        // Perform the spin
-        this.grid.spin().then(() => {
+        try {
+            if (this.isSpinning || this.balance < this.betAmount) {
+                console.log('⚠️ Cannot spin - already spinning or insufficient balance');
+                return;
+            }
+            
+            // Check if animations are still playing
+            if (this.grid.animations && this.grid.animations.isAnimationActive()) {
+                console.log('⚠️ Cannot spin - animations still playing');
+                return;
+            }
+            
+            console.log('🎰 Starting new spin...');
+            this.isSpinning = true;
+            this.lastSpinTime = Date.now(); // Track spin start time
+            this.evaluationDepth = 0; // Reset recursion counter
+            this.spinButton.disabled = true;
+            
+            // Deduct bet from balance
+            if (this.freeSpinsRemaining === 0) {
+                this.balance -= this.betAmount;
+                this.updateUI();
+            }
+            
+            // Reset win amount
+            this.winAmountElement.textContent = '0.00';
+            
+            // Play spin sound
+            this.soundManager.play('spin');
+            
+            // Add spin animation to cells
+            document.querySelectorAll('.grid-cell').forEach(cell => {
+                cell.classList.add('spin-animation');
+            });
+            
+            // Perform the spin with error handling
+            const spinResult = await this.grid.spin();
+            
             // Remove spin animation
             document.querySelectorAll('.grid-cell').forEach(cell => {
                 cell.classList.remove('spin-animation');
             });
+            
             this.evaluateSpin();
-        });
+        } catch (error) {
+            console.error('Error during spin:', error);
+            this.handleSpinError();
+        }
     }
     
     async evaluateSpin() {
         try {
-            // First check for scatters
-            const scattersTriggered = this.freeSpinsManager.checkForScatters();
-            if (scattersTriggered) {
-                this.soundManager.play('scatter');
+            // Prevent infinite recursion with depth counter
+            if (!this.evaluationDepth) this.evaluationDepth = 0;
+            this.evaluationDepth++;
+            
+            if (this.evaluationDepth > 10) {
+                console.warn('Maximum evaluation depth reached, ending spin');
+                this.endSpin();
+                return;
             }
             
+            console.log(`🔍 Evaluation depth: ${this.evaluationDepth}`);
+            
+            // STEP 1: Apply special symbol effects FIRST (Rush, Surge, Slash)
+            await this.processSpecialSymbols();
+            
+            // STEP 2: Find clusters after special effects
             const clusters = this.grid.findClusters();
+            if (!clusters) {
+                console.warn('No clusters found, checking for scatters');
+                // Even without clusters, check for scatters at the end
+                const scattersTriggered = this.freeSpinsManager.checkForScatters();
+                if (scattersTriggered) {
+                    this.soundManager.play('scatter');
+                } else {
+                    this.endSpin();
+                }
+                return;
+            }
+            
             let totalWin = 0;
         
-        if (clusters.length > 0) {
-            // Calculate winnings
-            clusters.forEach(cluster => {
-                const symbol = cluster.symbol;
-                const clusterSize = Math.min(cluster.size, 15);
-                const basePayout = symbol.paytable[clusterSize] || symbol.paytable[15];
-                const adjustedPayout = rtpManager.calculateVolatilityPayout(basePayout, clusterSize);
-                totalWin += adjustedPayout * this.betAmount;
-            });
-            
-            // Apply progressive multiplier in free spins
-            if (this.freeSpinsRemaining > 0) {
-                totalWin *= this.progressiveMultiplier;
-                if (!this.isSuperFreeSpins) {
-                    this.progressiveMultiplier++;
+            if (clusters.length > 0) {
+                // Calculate winnings
+                clusters.forEach(cluster => {
+                    try {
+                        if (!cluster || !cluster.symbol || !cluster.symbol.paytable) {
+                            console.warn('Invalid cluster data:', cluster);
+                            return;
+                        }
+                        
+                        const symbol = cluster.symbol;
+                        const clusterSize = Math.min(cluster.size, 15);
+                        const basePayout = symbol.paytable[clusterSize] || symbol.paytable[15] || 0;
+                        const adjustedPayout = rtpManager.calculateVolatilityPayout(basePayout, clusterSize);
+                        totalWin += adjustedPayout * this.betAmount;
+                    } catch (clusterError) {
+                        console.error('Error processing cluster:', clusterError, cluster);
+                    }
+                });
+                
+                // Apply progressive multiplier in free spins
+                if (this.freeSpinsRemaining > 0) {
+                    totalWin *= this.progressiveMultiplier;
+                    if (!this.isSuperFreeSpins) {
+                        this.progressiveMultiplier++;
+                    }
+                }
+                
+                // Apply multiplier symbols if in free spins
+                if (this.freeSpinsRemaining > 0) {
+                    const symbolMultiplier = this.freeSpinsManager.calculateTotalMultiplier();
+                    totalWin *= symbolMultiplier;
+                }
+                
+                // Highlight winning clusters with enhanced visual feedback
+                this.grid.highlightWinningClusters(clusters);
+                
+                // Update balance and show win
+                this.balance += totalWin;
+                this.winAmountElement.textContent = totalWin.toFixed(2);
+                
+                // Play win sound
+                this.soundManager.playWinSound(totalWin, this.betAmount);
+                
+                // Add win celebration animation
+                this.winAmountElement.parentElement.classList.add('win-celebration');
+                setTimeout(() => {
+                    this.winAmountElement.parentElement.classList.remove('win-celebration');
+                }, 500);
+                
+                // New 4-phase elimination sequence
+                setTimeout(async () => {
+                    try {
+                        console.log('🎯 Starting elimination sequence for', clusters.length, 'clusters');
+                        
+                        // Single step: Remove symbols with 4-phase animation
+                        await this.grid.removeWinningSymbols(clusters);
+                        
+                        // Play cascade sound after elimination is complete
+                        this.soundManager.play('cascade');
+                        
+                        // Quick evaluation for next wins
+                        const evaluationTimeout = setTimeout(() => {
+                            console.warn('Evaluation timeout, ending spin');
+                            this.endSpin();
+                        }, 8000);
+                        
+                        setTimeout(() => {
+                            clearTimeout(evaluationTimeout);
+                            
+                            // Double-check that we're still in a valid state
+                            if (!this.isSpinning) {
+                                console.warn('Spin ended during cascade, stopping evaluation');
+                                return;
+                            }
+                            
+                            this.evaluateSpin(); // Check for cascading wins
+                        }, 800); // Wait for cascade animation to complete (longer for 4-phase)
+                    } catch (cascadeError) {
+                        console.error('Error during cascade:', cascadeError);
+                        this.endSpin();
+                    }
+                }, 800); // Initial delay to show win highlights
+            } else {
+                // No wins, but check for scatters at the END
+                const scattersTriggered = this.freeSpinsManager.checkForScatters();
+                if (scattersTriggered) {
+                    this.soundManager.play('scatter');
+                } else {
+                    this.endSpin();
                 }
             }
             
-            // Apply multiplier symbols if in free spins
-            if (this.freeSpinsRemaining > 0) {
-                const symbolMultiplier = this.freeSpinsManager.calculateTotalMultiplier();
-                totalWin *= symbolMultiplier;
-            }
-            
-            // Highlight winning clusters
-            this.grid.highlightWinningClusters(clusters);
-            
-            // Update balance and show win
-            this.balance += totalWin;
-            this.winAmountElement.textContent = totalWin.toFixed(2);
-            
-            // Play win sound
-            this.soundManager.playWinSound(totalWin, this.betAmount);
-            
-            // Add win celebration animation
-            this.winAmountElement.parentElement.classList.add('win-celebration');
-            setTimeout(() => {
-                this.winAmountElement.parentElement.classList.remove('win-celebration');
-            }, 500);
-            
-            // Cascade and check for additional wins
-            setTimeout(async () => {
-                this.soundManager.play('cascade');
-                this.addCascadeEffect(clusters);
-                await this.grid.removeWinningSymbols(clusters);
-                setTimeout(() => {
-                    this.evaluateSpin(); // Check for cascading wins
-                }, 600); // Reduced delay since animations are better coordinated
-            }, 1000);
-        } else {
-            // No wins, check if scatters triggered free spins
-            if (!scattersTriggered) {
-                this.endSpin();
-            }
-        }
-        
-        this.updateUI();
+            this.updateUI();
         } catch (error) {
             console.error('Error during spin evaluation:', error);
             this.endSpin();
         }
     }
     
+    // STEP 1: Process ALL special symbols truly simultaneously
+    async processSpecialSymbols() {
+        console.log('⭐ Collecting ALL special symbol effects first');
+        
+        const specialSymbolPositions = [];
+        
+        // Find all special symbols on the grid
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                const symbol = this.grid.grid[row][col];
+                if (symbol && (symbol.id === 'rush' || symbol.id === 'surge' || symbol.id === 'slash')) {
+                    specialSymbolPositions.push({row, col, symbol});
+                }
+            }
+        }
+        
+        if (specialSymbolPositions.length === 0) {
+            return; // No special symbols to process
+        }
+        
+        console.log(`🎯 Found ${specialSymbolPositions.length} special symbols - collecting all effects first`);
+        
+        // STEP 1: COLLECT all effects without applying them
+        const collectedEffects = {
+            wildPositions: new Set(), // Rush effects - positions where wilds will be added
+            transformations: new Map(), // Surge effects - position -> new symbol
+            eliminatedPositions: new Set() // Slash effects - positions to eliminate
+        };
+        
+        // Collect Rush effects (add wilds)
+        specialSymbolPositions.filter(s => s.symbol.id === 'rush').forEach(({row, col}) => {
+            console.log(`🌟 Collecting RUSH effect at [${row},${col}]`);
+            const wildPositions = this.grid.specialHandler.getRushEffectPositions({row, col});
+            wildPositions.forEach(pos => collectedEffects.wildPositions.add(`${pos.row},${pos.col}`));
+        });
+        
+        // Collect Surge effects (transform adjacent)
+        specialSymbolPositions.filter(s => s.symbol.id === 'surge').forEach(({row, col}) => {
+            console.log(`🌈 Collecting SURGE effect at [${row},${col}]`);
+            const transformations = this.grid.specialHandler.getSurgeEffectTransformations({row, col});
+            transformations.forEach(({position, symbol}) => {
+                collectedEffects.transformations.set(`${position.row},${position.col}`, symbol);
+            });
+        });
+        
+        // Collect Slash effects (remove lines)  
+        specialSymbolPositions.filter(s => s.symbol.id === 'slash').forEach(({row, col}) => {
+            console.log(`⚔️ Collecting SLASH effect at [${row},${col}]`);
+            const eliminatedPositions = this.grid.specialHandler.getSlashEffectPositions({row, col});
+            eliminatedPositions.forEach(pos => collectedEffects.eliminatedPositions.add(`${pos.row},${pos.col}`));
+        });
+        
+        console.log(`📊 Collected effects: ${collectedEffects.wildPositions.size} wilds, ${collectedEffects.transformations.size} transforms, ${collectedEffects.eliminatedPositions.size} eliminations`);
+        
+        // STEP 2: Apply ALL collected effects SIMULTANEOUSLY
+        console.log('🎆 Applying ALL effects simultaneously');
+        await this.applyCollectedEffects(collectedEffects);
+        
+        console.log('✅ All special symbol effects applied SIMULTANEOUSLY');
+    }
+    
+    // Apply all collected effects at once
+    async applyCollectedEffects(effects) {
+        // Apply transformations first (Surge effects) - these don't need cascading
+        if (effects.transformations.size > 0) {
+            console.log(`🔄 Transforming ${effects.transformations.size} positions simultaneously`);
+            effects.transformations.forEach((newSymbol, posStr) => {
+                const [row, col] = posStr.split(',').map(Number);
+                this.grid.grid[row][col] = newSymbol;
+                this.grid.updateCell(row, col, newSymbol);
+            });
+        }
+        
+        // Apply wild additions (Rush effects) - these don't need cascading  
+        if (effects.wildPositions.size > 0) {
+            console.log(`⭐ Adding ${effects.wildPositions.size} wilds simultaneously`);
+            effects.wildPositions.forEach(posStr => {
+                const [row, col] = posStr.split(',').map(Number);
+                const wildSymbol = {
+                    id: 'wild',
+                    name: 'Wild',
+                    icon: '💠',
+                    color: '#FFD700',
+                    isWild: true
+                };
+                this.grid.grid[row][col] = wildSymbol;
+                this.grid.updateCell(row, col, wildSymbol);
+            });
+        }
+        
+        // Apply eliminations with proper cascade animation (Slash effects)
+        if (effects.eliminatedPositions.size > 0) {
+            console.log(`🗑️ Eliminating ${effects.eliminatedPositions.size} positions with cascade animation`);
+            
+            // Create fake clusters for the elimination animation system
+            const eliminatedClusters = [{
+                symbol: { name: 'Special Elimination', id: 'special-elimination' },
+                positions: Array.from(effects.eliminatedPositions).map(posStr => {
+                    const [row, col] = posStr.split(',').map(Number);
+                    return {row, col};
+                }),
+                size: effects.eliminatedPositions.size
+            }];
+            
+            // Use the existing removal system with cascade animation
+            await this.grid.removeWinningSymbols(eliminatedClusters);
+        }
+    }
+    
     endSpin() {
+        console.log('🏁 Ending spin, resetting state');
         this.isSpinning = false;
+        this.evaluationDepth = 0; // Reset recursion counter
+        
+        // Ensure all animations are properly ended
+        if (this.grid.animations) {
+            this.grid.animations.isAnimating = false;
+            this.grid.animations.pendingAnimations.clear();
+            this.grid.animations.currentAnimationPhase = 'idle';
+            
+            // Force clear any stuck yellow effects
+            this.grid.animations.clearAllYellowEffects();
+        }
         
         // Handle free spins
         if (this.freeSpinsRemaining > 0) {
@@ -374,6 +588,44 @@ export class CS2GridGame {
         document.getElementById('game-container').appendChild(soundToggle);
     }
     
+    flashWinningSymbols(clusters) {
+        clusters.forEach(cluster => {
+            cluster.positions.forEach(({row, col}) => {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (cell) {
+                    // Add intense flashing effect to make wins very obvious
+                    cell.classList.add('winning-flash');
+                    
+                    // Create pulsing border effect
+                    const pulseEffect = document.createElement('div');
+                    pulseEffect.className = 'win-pulse-border';
+                    pulseEffect.style.cssText = `
+                        position: absolute;
+                        top: -3px;
+                        left: -3px;
+                        right: -3px;
+                        bottom: -3px;
+                        border: 3px solid #FFD700;
+                        border-radius: 8px;
+                        animation: pulseGlow 0.8s ease-in-out infinite;
+                        pointer-events: none;
+                        z-index: 10;
+                    `;
+                    cell.style.position = 'relative';
+                    cell.appendChild(pulseEffect);
+                    
+                    // Remove effects after shorter display period
+                    setTimeout(() => {
+                        cell.classList.remove('winning-flash');
+                        if (pulseEffect.parentNode) {
+                            pulseEffect.remove();
+                        }
+                    }, 600); // Reduced from 1200ms to 600ms
+                }
+            });
+        });
+    }
+    
     addCascadeEffect(clusters) {
         clusters.forEach(cluster => {
             cluster.positions.forEach(({row, col}) => {
@@ -488,5 +740,143 @@ export class CS2GridGame {
         
         html += '</div>';
         paytableContent.innerHTML = html;
+    }
+    
+    handleSpinError() {
+        console.log('🚨 Handling spin error - resetting game state');
+        this.isSpinning = false;
+        this.evaluationDepth = 0; // Reset recursion counter
+        this.spinButton.disabled = false;
+        
+        // Force cleanup of all animations
+        this.forceCleanup();
+        
+        this.updateUI();
+        alert('Spin error occurred. Game state has been reset.');
+    }
+    
+    forceCleanup() {
+        console.log('🧹 Force cleaning up game state');
+        
+        // Remove any stuck animations from cells
+        document.querySelectorAll('.grid-cell').forEach(cell => {
+            cell.classList.remove('spin-animation', 'winning', 'symbol-remove', 'winning-flash');
+            cell.style.transform = '';
+            cell.style.filter = '';
+            cell.style.transition = '';
+            cell.style.zIndex = '';
+        });
+        
+        // Clean up any orphaned animation elements
+        if (this.grid && this.grid.animations) {
+            this.grid.animations.cleanup();
+        }
+        
+        // Clear any pending timeouts (if we stored them)
+        if (this.pendingTimeouts) {
+            this.pendingTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+            this.pendingTimeouts = [];
+        }
+    }
+    
+    initDeadlockDetection() {
+        console.log('🔍 Initializing deadlock detection');
+        
+        // Check for deadlocks every 10 seconds
+        setInterval(() => {
+            if (this.isSpinning) {
+                const now = Date.now();
+                if (!this.lastSpinTime) {
+                    this.lastSpinTime = now;
+                    return;
+                }
+                
+                // If spinning for more than 30 seconds, force reset
+                if (now - this.lastSpinTime > 30000) {
+                    console.warn('🚨 Deadlock detected! Forcing game reset...');
+                    this.handleDeadlock();
+                }
+            } else {
+                this.lastSpinTime = null;
+            }
+        }, 10000);
+    }
+    
+    handleDeadlock() {
+        console.log('🚨 Handling deadlock situation');
+        
+        // Force end the spin
+        this.isSpinning = false;
+        this.evaluationDepth = 0;
+        
+        // Complete cleanup
+        this.forceCleanup();
+        
+        // Reset UI
+        this.updateUI();
+        
+        // Show warning to user
+        alert('Game was stuck and has been reset. You can continue playing.');
+        
+        // Reset last spin time
+        this.lastSpinTime = null;
+    }
+    
+    runAutoTest() {
+        console.log('🧪 Starting automated spin test...');
+        
+        const autoTestButton = document.getElementById('auto-test');
+        if (autoTestButton) {
+            autoTestButton.disabled = true;
+            autoTestButton.textContent = 'Testing...';
+        }
+        
+        let testSpinCount = 0;
+        const maxTestSpins = 5;
+        let testStartTime = Date.now();
+        let testErrors = 0;
+        
+        const performTestSpin = () => {
+            if (testSpinCount >= maxTestSpins) {
+                const testDuration = (Date.now() - testStartTime) / 1000;
+                console.log(`✅ Auto-test completed: ${maxTestSpins} spins in ${testDuration.toFixed(1)}s, ${testErrors} errors`);
+                
+                if (autoTestButton) {
+                    autoTestButton.disabled = false;
+                    autoTestButton.textContent = `Auto Test (5 Spins)`;
+                    autoTestButton.style.background = testErrors > 0 ? '#dc3545' : '#28a745';
+                }
+                
+                alert(`Test completed: ${maxTestSpins} spins, ${testErrors} errors`);
+                return;
+            }
+            
+            if (this.isSpinning) {
+                console.log('⏳ Waiting for current spin to complete...');
+                setTimeout(performTestSpin, 1000);
+                return;
+            }
+            
+            testSpinCount++;
+            console.log(`🎯 Test spin ${testSpinCount}/${maxTestSpins}`);
+            
+            try {
+                this.spin().then(() => {
+                    // Wait a bit before next spin to let animations complete
+                    setTimeout(performTestSpin, 3000);
+                }).catch((error) => {
+                    testErrors++;
+                    console.error(`❌ Test spin ${testSpinCount} failed:`, error);
+                    setTimeout(performTestSpin, 2000);
+                });
+            } catch (error) {
+                testErrors++;
+                console.error(`❌ Test spin ${testSpinCount} error:`, error);
+                setTimeout(performTestSpin, 2000);
+            }
+        };
+        
+        // Start the test
+        setTimeout(performTestSpin, 500);
     }
 }
