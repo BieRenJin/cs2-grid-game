@@ -53,28 +53,35 @@ export class SpecialSymbolHandler {
         
         console.log(`🌈 Surge transforming all adjacent to: ${targetSymbol.name}`);
         
-        // Transform ALL adjacent cells to the same symbol type
+        // Transform adjacent cells to the same symbol type (only regular symbols)
         const adjacentPositions = this.getAdjacentPositions(row, col);
         adjacentPositions.forEach(({row: r, col: c}) => {
             // Check if grid position exists and has a symbol
             if (this.grid.grid[r] && this.grid.grid[r][c]) {
-                // Transform regardless of current symbol (create cluster)
-                this.grid.grid[r][c] = targetSymbol;
-                // Use safe content setting instead of direct updateCell
-                const targetCell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
-                if (targetCell && this.grid.animations) {
-                    this.grid.animations.setCellContentSafely(targetCell, targetSymbol);
-                }
-                transformedPositions.push({row: r, col: c});
+                const currentSymbol = this.grid.grid[r][c];
                 
-                // Add rainbow animation
-                const cell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
-                if (cell) {
-                    cell.style.background = `linear-gradient(45deg, 
-                        #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff)`;
-                    setTimeout(() => {
-                        cell.style.background = targetSymbol.color + '33';
-                    }, 1000);
+                // Only transform regular symbols, skip special symbols
+                if (!this.isSpecialSymbol(currentSymbol)) {
+                    console.log(`🔄 Surge transforming ${currentSymbol.name} at [${r},${c}] to ${targetSymbol.name}`);
+                    this.grid.grid[r][c] = targetSymbol;
+                    // Use safe content setting instead of direct updateCell
+                    const targetCell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+                    if (targetCell && this.grid.animations) {
+                        this.grid.animations.setCellContentSafely(targetCell, targetSymbol);
+                    }
+                    transformedPositions.push({row: r, col: c});
+                    
+                    // Add rainbow animation
+                    const cell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+                    if (cell) {
+                        cell.style.background = `linear-gradient(45deg, 
+                            #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff)`;
+                        setTimeout(() => {
+                            cell.style.background = targetSymbol.color + '33';
+                        }, 1000);
+                    }
+                } else {
+                    console.log(`🚫 Surge skips special symbol ${currentSymbol.name} at [${r},${c}]`);
                 }
             }
         });
@@ -353,14 +360,21 @@ export class SpecialSymbolHandler {
         // Get all 8 adjacent positions (including diagonals)
         const adjacentPositions = this.getAdjacentPositions(row, col);
         
-        // Transform ALL adjacent positions to the selected symbol type
+        // Transform adjacent positions to the selected symbol type (only regular symbols)
         adjacentPositions.forEach(({row: r, col: c}) => {
             if (this.grid.grid[r] && this.grid.grid[r][c]) {
-                // Always transform, regardless of current symbol
-                transformations.push({
-                    position: {row: r, col: c},
-                    symbol: targetSymbol
-                });
+                const currentSymbol = this.grid.grid[r][c];
+                
+                // Only transform regular symbols, skip special symbols
+                if (!this.isSpecialSymbol(currentSymbol)) {
+                    transformations.push({
+                        position: {row: r, col: c},
+                        symbol: targetSymbol
+                    });
+                    console.log(`🔄 Surge will transform ${currentSymbol.name} at [${r},${c}] to ${targetSymbol.name}`);
+                } else {
+                    console.log(`🚫 Surge skips special symbol ${currentSymbol.name} at [${r},${c}]`);
+                }
             }
         });
         
