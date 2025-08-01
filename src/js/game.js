@@ -198,9 +198,38 @@ export class CS2GridGame {
             
             console.log(`🔍 Starting evaluation cycle ${this.evaluationDepth}`);
             
-            // MAIN GAME LOOP: Process all wins first, then special effects
+            // STEP 1: Process all wins first (inner win loop)
             await this.processAllWins();
-            await this.processAllSpecialEffects();
+            
+            // STEP 2: Check for special effects in priority order
+            // Each effect triggers a return to STEP 1
+            
+            // Check Rush effects
+            if (await this.processRushSymbols()) {
+                console.log('⭐ Rush effects triggered - restarting evaluation from step 1');
+                setTimeout(() => {
+                    this.evaluateSpin(); // Restart from step 1
+                }, 800);
+                return;
+            }
+            
+            // Check Surge effects
+            if (await this.processSurgeSymbols()) {
+                console.log('🌈 Surge effects triggered - restarting evaluation from step 1');
+                setTimeout(() => {
+                    this.evaluateSpin(); // Restart from step 1
+                }, 800);
+                return;
+            }
+            
+            // Check Slash effects
+            if (await this.processSlashSymbols()) {
+                console.log('⚔️ Slash effects triggered - restarting evaluation from step 1');
+                setTimeout(() => {
+                    this.evaluateSpin(); // Restart from step 1
+                }, 800);
+                return;
+            }
             
             // If we get here, no more wins or effects - end the spin
             console.log('🏁 No more wins or effects, checking for scatters');
@@ -302,30 +331,6 @@ export class CS2GridGame {
         console.log(`✅ WIN LOOP completed after ${winLoopCount} iterations`);
     }
     
-    // OUTER SPECIAL EFFECTS LOOP: Process each effect type with its own win processing
-    async processAllSpecialEffects() {
-        console.log('🌟 Starting OUTER SPECIAL EFFECTS LOOP');
-        
-        // Process Rush effects
-        if (await this.processRushSymbols()) {
-            console.log('⭐ Rush effects triggered - processing resulting wins');
-            await this.processAllWins(); // Process all wins from Rush effects
-        }
-        
-        // Process Surge effects  
-        if (await this.processSurgeSymbols()) {
-            console.log('🌈 Surge effects triggered - processing resulting wins');
-            await this.processAllWins(); // Process all wins from Surge effects
-        }
-        
-        // Process Slash effects
-        if (await this.processSlashSymbols()) {
-            console.log('⚔️ Slash effects triggered - processing resulting wins');
-            await this.processAllWins(); // Process all wins from Slash effects
-        }
-        
-        console.log('✅ SPECIAL EFFECTS LOOP completed');
-    }
     
     
     // Process all Rush symbols as a group
