@@ -93,25 +93,24 @@ export class SpecialSymbolHandler {
         const {row, col} = position;
         const removedPositions = [];
         
-        // Remove entire row and column (but not the slash symbol itself)
+        // FIXED: Include the slash symbol itself in removal
+        removedPositions.push({row, col});
+        
+        // Remove entire row
         for (let c = 0; c < this.grid.size; c++) {
             if (c !== col && this.grid.grid[row] && this.grid.grid[row][c]) {
                 removedPositions.push({row, col: c});
             }
         }
         
+        // Remove entire column
         for (let r = 0; r < this.grid.size; r++) {
             if (r !== row && this.grid.grid[r] && this.grid.grid[r][col]) {
                 removedPositions.push({row: r, col});
             }
         }
         
-        if (removedPositions.length === 0) {
-            console.log('🔪 No symbols to slash');
-            return removedPositions;
-        }
-        
-        console.log(`🔪 Slash effect removing ${removedPositions.length} symbols`);
+        console.log(`🔪 Slash effect removing ${removedPositions.length} symbols (including itself)`);
         
         // Create fake clusters for the 4-phase animation system
         const slashClusters = [{
@@ -346,19 +345,25 @@ export class SpecialSymbolHandler {
         const {row, col} = position;
         const eliminatedPositions = [];
         
-        // Remove entire row and column (but not the slash symbol itself)
+        // FIXED: Include the slash symbol itself in elimination
+        // First add the slash symbol position itself
+        eliminatedPositions.push({row, col});
+        
+        // Remove entire row
         for (let c = 0; c < this.grid.size; c++) {
             if (c !== col && this.grid.grid[row] && this.grid.grid[row][c]) {
                 eliminatedPositions.push({row, col: c});
             }
         }
         
+        // Remove entire column
         for (let r = 0; r < this.grid.size; r++) {
             if (r !== row && this.grid.grid[r] && this.grid.grid[r][col]) {
                 eliminatedPositions.push({row: r, col});
             }
         }
         
+        console.log(`⚔️ Slash will eliminate ${eliminatedPositions.length} positions including itself`);
         return eliminatedPositions;
     }
 }
