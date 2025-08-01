@@ -140,13 +140,22 @@ export class GameGrid {
             for (let row = 0; row < this.size; row++) {
                 for (let col = 0; col < this.size; col++) {
                     if (!visited[row][col] && this.grid[row] && this.grid[row][col]) {
-                        const cluster = this.dfs(row, col, this.grid[row][col].id, visited);
+                        const currentSymbol = this.grid[row][col];
+                        
+                        // Skip Wild symbols as starting points - they will be included when processing regular symbols
+                        if (currentSymbol.isWild) {
+                            continue;
+                        }
+                        
+                        // Use dfsWithWilds to handle Wild symbols as substitutes
+                        const cluster = this.dfsWithWilds(row, col, currentSymbol.id, visited);
                         if (cluster && cluster.length >= 5) {
                             clusters.push({
-                                symbol: this.grid[row][col],
+                                symbol: currentSymbol, // Use the original symbol type for payout calculation
                                 positions: cluster,
                                 size: cluster.length
                             });
+                            console.log(`🎯 Found cluster of ${currentSymbol.name} (${cluster.length} symbols, including wilds)`);
                         }
                     }
                 }
