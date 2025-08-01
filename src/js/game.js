@@ -81,6 +81,14 @@ export class CS2GridGame {
             });
         }
         
+        // Add RTP test functionality
+        const rtpTestButton = document.getElementById('rtp-test');
+        if (rtpTestButton) {
+            rtpTestButton.addEventListener('click', () => {
+                this.runRTPTest();
+            });
+        }
+        
         // Paytable modal
         const paytableButton = document.getElementById('toggle-paytable');
         const modal = document.getElementById('paytable-modal');
@@ -1299,5 +1307,392 @@ export class CS2GridGame {
         
         alert(message);
         console.log('📊 Special Symbol Statistics:', stats);
+    }
+    
+    // Run comprehensive RTP test
+    async runRTPTest() {
+        if (this.isSpinning) {
+            alert('Cannot run RTP test while spinning');
+            return;
+        }
+        
+        console.log('🧪 Starting RTP Test (1,000,000 spins)...');
+        
+        const testResults = {
+            totalSpins: 1000000, // 1 million spins for accurate RTP
+            totalBet: 0,
+            totalWin: 0,
+            specialSymbolTriggered: 0,
+            bigWins: 0, // wins > 10x bet
+            hugeWins: 0, // wins > 50x bet
+            megaWins: 0, // wins > 100x bet
+            deadSpins: 0, // no wins
+            maxWin: 0, // biggest single win
+            totalEvaluationCycles: 0 // for performance metrics
+        };
+        
+        // Save original balance and bet
+        const originalBalance = this.balance;
+        const originalBet = this.betAmount;
+        
+        // Set test balance
+        this.balance = 100000; // Large balance for testing
+        this.betAmount = 1.00; // Fixed bet for consistent testing
+        
+        // Show progress dialog
+        let cancelled = false;
+        const progressDiv = document.createElement('div');
+        progressDiv.style.cssText = `
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: white; border: 2px solid #333; padding: 20px; z-index: 10000; 
+            border-radius: 10px; text-align: center; min-width: 350px;
+        `;
+        progressDiv.innerHTML = `
+            <h3>RTP Test Running (1M spins)...</h3>
+            <div id="rtp-progress">Spin 0 / ${testResults.totalSpins.toLocaleString()}</div>
+            <div id="rtp-current-rtp">Current RTP: 0%</div>
+            <div id="rtp-eta">ETA: Calculating...</div>
+            <div style="margin-top: 10px;">
+                <button id="cancel-rtp-test" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer;">Cancel Test</button>
+            </div>
+        `;
+        document.body.appendChild(progressDiv);
+        
+        const progressText = document.getElementById('rtp-progress');
+        const rtpText = document.getElementById('rtp-current-rtp');
+        const etaText = document.getElementById('rtp-eta');
+        
+        // Cancel button functionality
+        document.getElementById('cancel-rtp-test').addEventListener('click', () => {
+            cancelled = true;
+            progressDiv.remove();
+            alert('RTP Test cancelled by user.');
+        });
+        
+        const startTime = Date.now();
+        
+        // Run test spins
+        for (let spinNum = 1; spinNum <= testResults.totalSpins; spinNum++) {
+            try {
+                // Check if cancelled
+                if (cancelled) {
+                    break;
+                }
+                
+                // Update progress every 10000 spins (for 1M spins)
+                if (spinNum % 10000 === 0 || spinNum === 1) {
+                    progressText.textContent = `Spin ${spinNum.toLocaleString()} / ${testResults.totalSpins.toLocaleString()}`;
+                    const currentRTP = testResults.totalBet > 0 ? 
+                        ((testResults.totalWin / testResults.totalBet) * 100).toFixed(2) : 0;
+                    rtpText.textContent = `Current RTP: ${currentRTP}%`;
+                    
+                    // Calculate ETA
+                    const elapsed = Date.now() - startTime;
+                    const avgTimePerSpin = elapsed / spinNum;
+                    const remainingSpins = testResults.totalSpins - spinNum;
+                    const etaMs = remainingSpins * avgTimePerSpin;
+                    const etaMinutes = Math.round(etaMs / 60000);
+                    etaText.textContent = `ETA: ${etaMinutes} minutes`;
+                    
+                    // Allow UI to update every 10k spins
+                    await new Promise(resolve => setTimeout(resolve, 1));
+                }
+                
+                // Reset for clean test
+                this.grid.resetGrid();
+                this.currentSpinWinAmount = 0;
+                
+                // Simulate a spin without UI animations
+                const spinResult = await this.simulateSpinForRTP();
+                
+                testResults.totalBet += this.betAmount;
+                testResults.totalWin += spinResult.totalWin;
+                testResults.totalEvaluationCycles += spinResult.evaluationCycles;
+                
+                // Track max win
+                if (spinResult.totalWin > testResults.maxWin) {
+                    testResults.maxWin = spinResult.totalWin;
+                }
+                
+                // Categorize wins
+                const winMultiplier = spinResult.totalWin / this.betAmount;
+                if (spinResult.totalWin === 0) {
+                    testResults.deadSpins++;
+                } else if (winMultiplier > 100) {
+                    testResults.megaWins++;
+                } else if (winMultiplier > 50) {
+                    testResults.hugeWins++;
+                } else if (winMultiplier > 10) {
+                    testResults.bigWins++;
+                }
+                
+                if (spinResult.specialSymbolsTriggered > 0) {
+                    testResults.specialSymbolTriggered++;
+                }
+                
+            } catch (error) {
+                console.error(`Error in spin ${spinNum}:`, error);
+            }
+        }
+        
+        // Calculate final results (only if not cancelled)
+        if (!cancelled) {
+            const actualSpins = testResults.totalBet / this.betAmount; // Actual completed spins
+            const finalRTP = testResults.totalBet > 0 ? (testResults.totalWin / testResults.totalBet) * 100 : 0;
+            const avgWinPerSpin = testResults.totalWin / actualSpins;
+            const winRate = ((actualSpins - testResults.deadSpins) / actualSpins) * 100;
+            const avgEvaluationsPerSpin = testResults.totalEvaluationCycles / actualSpins;
+            const maxWinMultiplier = testResults.maxWin / this.betAmount;
+            
+            // Calculate test duration
+            const testDuration = (Date.now() - startTime) / 1000; // seconds
+            const spinsPerSecond = actualSpins / testDuration;
+            
+            // Restore original values
+            this.balance = originalBalance;
+            this.betAmount = originalBet;
+            this.updateUI();
+            
+            // Remove progress dialog
+            progressDiv.remove();
+            
+            // Show results
+            const resultsMessage = `RTP Test Results (${actualSpins.toLocaleString()} spins):\n\n` +
+                `💰 Final RTP: ${finalRTP.toFixed(3)}% (Target: 97%)\n` +
+                `📊 Total Bet: $${testResults.totalBet.toLocaleString()}\n` +
+                `💵 Total Win: $${testResults.totalWin.toFixed(2)}\n` +
+                `📈 Average Win/Spin: $${avgWinPerSpin.toFixed(4)}\n` +
+                `🎯 Win Rate: ${winRate.toFixed(2)}% (spins with wins)\n` +
+                `🏆 Max Win: ${maxWinMultiplier.toFixed(1)}x ($${testResults.maxWin.toFixed(2)})\n\n` +
+                `Win Categories:\n` +
+                `💀 Dead Spins: ${testResults.deadSpins.toLocaleString()} (${((testResults.deadSpins/actualSpins)*100).toFixed(2)}%)\n` +
+                `🟢 Big Wins (>10x): ${testResults.bigWins.toLocaleString()}\n` +
+                `🟡 Huge Wins (>50x): ${testResults.hugeWins.toLocaleString()}\n` +
+                `🔴 Mega Wins (>100x): ${testResults.megaWins.toLocaleString()}\n\n` +
+                `⭐ Special Symbols: ${testResults.specialSymbolTriggered.toLocaleString()} spins (${((testResults.specialSymbolTriggered/actualSpins)*100).toFixed(3)}%)\n\n` +
+                `⚡ Performance:\n` +
+                `⏱️ Test Duration: ${testDuration.toFixed(1)}s\n` +
+                `🚀 Speed: ${spinsPerSecond.toFixed(0)} spins/sec\n` +
+                `🔄 Avg Evaluations/Spin: ${avgEvaluationsPerSpin.toFixed(2)}`;
+            
+            alert(resultsMessage);
+            console.log('🎯 RTP Test Complete:', testResults, `Final RTP: ${finalRTP.toFixed(3)}%`);
+            
+            return testResults;
+        } else {
+            // Test was cancelled
+            this.balance = originalBalance;
+            this.betAmount = originalBet;
+            this.updateUI();
+            return null;
+        }
+    }
+    
+    // Simulate a single spin for RTP testing (without animations)
+    async simulateSpinForRTP() {
+        const result = {
+            totalWin: 0,
+            clusters: [],
+            specialSymbolsTriggered: 0,
+            evaluationCycles: 0
+        };
+        
+        // Generate initial grid
+        this.grid.resetGrid();
+        
+        // Keep evaluating until no more wins or effects
+        let evaluationCount = 0;
+        while (evaluationCount < 20) { // Prevent infinite loops
+            evaluationCount++;
+            result.evaluationCycles = evaluationCount;
+            
+            // Find clusters and calculate wins
+            const clusters = this.grid.findClusters();
+            if (clusters && clusters.length > 0) {
+                let cycleWin = 0;
+                clusters.forEach(cluster => {
+                    const symbol = cluster.symbol;
+                    const clusterSize = Math.min(cluster.size, 15);
+                    const basePayout = symbol.paytable[clusterSize] || symbol.paytable[15] || 0;
+                    const adjustedPayout = rtpManager.calculateVolatilityPayout(basePayout, clusterSize);
+                    cycleWin += adjustedPayout * this.betAmount;
+                });
+                
+                result.totalWin += cycleWin;
+                result.clusters.push(...clusters);
+                
+                // Remove winning symbols and cascade
+                this.simulateCascadeForRTP(clusters);
+            } else {
+                // No more wins, check for special effects
+                const hasSpecialEffects = await this.simulateSpecialEffectsForRTP();
+                if (hasSpecialEffects) {
+                    result.specialSymbolsTriggered++;
+                    continue; // Continue evaluation after special effects
+                } else {
+                    break; // No wins and no special effects, end evaluation
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    // Simulate cascade without animations
+    simulateCascadeForRTP(clusters) {
+        // Remove winning symbols
+        clusters.forEach(cluster => {
+            cluster.positions.forEach(pos => {
+                this.grid.grid[pos.row][pos.col] = null;
+            });
+        });
+        
+        // Cascade and fill with new symbols
+        for (let col = 0; col < this.grid.size; col++) {
+            const movements = [];
+            const newSymbols = [];
+            
+            // Calculate movements
+            let writePos = this.grid.size - 1;
+            for (let row = this.grid.size - 1; row >= 0; row--) {
+                if (this.grid.grid[row][col] !== null) {
+                    if (row !== writePos) {
+                        this.grid.grid[writePos][col] = this.grid.grid[row][col];
+                        this.grid.grid[row][col] = null;
+                    }
+                    writePos--;
+                }
+            }
+            
+            // Fill empty spaces with new symbols
+            for (let row = writePos; row >= 0; row--) {
+                let newSymbol;
+                if (this.grid.specialHandler.shouldAppearSpecialSymbol()) {
+                    newSymbol = this.grid.specialHandler.getRandomSpecialSymbol();
+                } else {
+                    newSymbol = getRandomSymbol();
+                }
+                this.grid.grid[row][col] = newSymbol;
+            }
+        }
+    }
+    
+    // Simulate special effects without animations
+    async simulateSpecialEffectsForRTP() {
+        // Check for Rush, Surge, Slash effects
+        const rushPositions = [];
+        const surgePositions = [];
+        const slashPositions = [];
+        
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                const symbol = this.grid.grid[row][col];
+                if (symbol) {
+                    if (symbol.id === 'rush') rushPositions.push({row, col});
+                    else if (symbol.id === 'surge') surgePositions.push({row, col});
+                    else if (symbol.id === 'slash') slashPositions.push({row, col});
+                }
+            }
+        }
+        
+        // Apply effects in priority order
+        if (rushPositions.length > 0) {
+            rushPositions.forEach(pos => {
+                this.simulateRushEffectForRTP(pos);
+            });
+            return true;
+        }
+        
+        if (surgePositions.length > 0) {
+            surgePositions.forEach(pos => {
+                this.simulateSurgeEffectForRTP(pos);
+            });
+            return true;
+        }
+        
+        if (slashPositions.length > 0) {
+            slashPositions.forEach(pos => {
+                this.simulateSlashEffectForRTP(pos);
+            });
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Simulate Rush effect for RTP testing
+    simulateRushEffectForRTP(position) {
+        const wildCount = Math.floor(Math.random() * 8) + 4; // 4-11 wilds
+        const validPositions = [];
+        
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                const currentSymbol = this.grid.grid[row][col];
+                if (currentSymbol && !this.grid.specialHandler.isSpecialSymbol(currentSymbol)) {
+                    validPositions.push({row, col});
+                }
+            }
+        }
+        
+        const shuffled = validPositions.sort(() => Math.random() - 0.5);
+        const selectedPositions = shuffled.slice(0, Math.min(wildCount, shuffled.length));
+        
+        // Transform Rush to Wild
+        this.grid.grid[position.row][position.col] = {
+            id: 'wild', name: 'Wild', icon: '💠', color: '#FFD700', isWild: true
+        };
+        
+        // Place Wild symbols
+        selectedPositions.forEach(pos => {
+            this.grid.grid[pos.row][pos.col] = {
+                id: 'wild', name: 'Wild', icon: '💠', color: '#FFD700', isWild: true
+            };
+        });
+    }
+    
+    // Simulate Surge effect for RTP testing
+    simulateSurgeEffectForRTP(position) {
+        const availableSymbols = [
+            SYMBOLS.FLASHBANG, SYMBOLS.SMOKE, SYMBOLS.HE_GRENADE, SYMBOLS.KEVLAR,
+            SYMBOLS.DEFUSE_KIT, SYMBOLS.DEAGLE, SYMBOLS.AK47, SYMBOLS.AWP
+        ];
+        const targetSymbol = availableSymbols[Math.floor(Math.random() * availableSymbols.length)];
+        
+        // Transform Surge symbol itself
+        this.grid.grid[position.row][position.col] = targetSymbol;
+        
+        // Transform adjacent symbols
+        const adjacentPositions = this.grid.specialHandler.getAdjacentPositions(position.row, position.col);
+        adjacentPositions.forEach(pos => {
+            const currentSymbol = this.grid.grid[pos.row][pos.col];
+            if (currentSymbol && !this.grid.specialHandler.isSpecialSymbol(currentSymbol)) {
+                this.grid.grid[pos.row][pos.col] = targetSymbol;
+            }
+        });
+    }
+    
+    // Simulate Slash effect for RTP testing
+    simulateSlashEffectForRTP(position) {
+        const {row, col} = position;
+        
+        // Remove the slash symbol itself
+        this.grid.grid[row][col] = null;
+        
+        // Remove entire row
+        for (let c = 0; c < this.grid.size; c++) {
+            if (c !== col) {
+                this.grid.grid[row][c] = null;
+            }
+        }
+        
+        // Remove entire column  
+        for (let r = 0; r < this.grid.size; r++) {
+            if (r !== row) {
+                this.grid.grid[r][col] = null;
+            }
+        }
+        
+        // Cascade after removal
+        this.simulateCascadeForRTP([]);
     }
 }
