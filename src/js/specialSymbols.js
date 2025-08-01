@@ -79,6 +79,21 @@ export class SpecialSymbolHandler {
             }
         });
         
+        // FIXED: Transform the Surge symbol itself to the target symbol
+        console.log(`🌈 Surge symbol at [${row},${col}] also transforms to: ${targetSymbol.name}`);
+        this.grid.grid[row][col] = targetSymbol;
+        const surgeCell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        if (surgeCell && this.grid.animations) {
+            this.grid.animations.setCellContentSafely(surgeCell, targetSymbol);
+            // Add rainbow fade effect to the surge cell too
+            surgeCell.style.background = `linear-gradient(45deg, 
+                #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff)`;
+            setTimeout(() => {
+                surgeCell.style.background = targetSymbol.color + '33';
+            }, 1000);
+        }
+        transformedPositions.push({row, col}); // Include Surge position itself
+        
         return transformedPositions;
     }
     
@@ -336,7 +351,13 @@ export class SpecialSymbolHandler {
             }
         });
         
-        console.log(`🎯 Surge will transform ${transformations.length} adjacent positions to ${targetSymbol.name}`);
+        // FIXED: Include the Surge symbol itself in the transformation
+        transformations.push({
+            position: {row, col},
+            symbol: targetSymbol
+        });
+        
+        console.log(`🎯 Surge will transform ${transformations.length} positions (including itself) to ${targetSymbol.name}`);
         return transformations;
     }
     
