@@ -1,4 +1,4 @@
-import { SPECIAL_SYMBOLS, getRandomSymbol } from './symbols.js';
+import { SPECIAL_SYMBOLS, SYMBOLS, getRandomSymbol } from './symbols.js';
 import { rtpManager } from './rtp.js';
 
 export class SpecialSymbolHandler {
@@ -43,16 +43,22 @@ export class SpecialSymbolHandler {
     applySurgeEffect(position) {
         const {row, col} = position;
         const transformedPositions = [];
-        const targetSymbol = this.getMostCommonAdjacentSymbol(row, col);
         
-        if (!targetSymbol) return transformedPositions;
+        // FIXED: Randomly select one symbol type for all adjacent transformations
+        const availableSymbols = [
+            SYMBOLS.FLASHBANG, SYMBOLS.SMOKE, SYMBOLS.HE_GRENADE, SYMBOLS.KEVLAR,
+            SYMBOLS.DEFUSE_KIT, SYMBOLS.DEAGLE, SYMBOLS.AK47, SYMBOLS.AWP
+        ];
+        const targetSymbol = availableSymbols[Math.floor(Math.random() * availableSymbols.length)];
         
-        // Transform all adjacent cells
+        console.log(`🌈 Surge transforming all adjacent to: ${targetSymbol.name}`);
+        
+        // Transform ALL adjacent cells to the same symbol type
         const adjacentPositions = this.getAdjacentPositions(row, col);
         adjacentPositions.forEach(({row: r, col: c}) => {
             // Check if grid position exists and has a symbol
-            if (this.grid.grid[r] && this.grid.grid[r][c] && 
-                this.grid.grid[r][c].id !== targetSymbol.id) {
+            if (this.grid.grid[r] && this.grid.grid[r][c]) {
+                // Transform regardless of current symbol (create cluster)
                 this.grid.grid[r][c] = targetSymbol;
                 // Use safe content setting instead of direct updateCell
                 const targetCell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
@@ -284,15 +290,31 @@ export class SpecialSymbolHandler {
     getSurgeEffectTransformations(position) {
         const {row, col} = position;
         const transformations = [];
-        const targetSymbol = this.getMostCommonAdjacentSymbol(row, col);
         
-        if (!targetSymbol) return transformations;
+        // FIXED: Use actual game symbols for transformation
+        const availableSymbols = [
+            SYMBOLS.FLASHBANG,
+            SYMBOLS.SMOKE,
+            SYMBOLS.HE_GRENADE,
+            SYMBOLS.KEVLAR,
+            SYMBOLS.DEFUSE_KIT,
+            SYMBOLS.DEAGLE,
+            SYMBOLS.AK47,
+            SYMBOLS.AWP
+        ];
         
-        // Get all adjacent positions that will be transformed
+        // Randomly select the target symbol type for transformation
+        const targetSymbol = availableSymbols[Math.floor(Math.random() * availableSymbols.length)];
+        
+        console.log(`🌈 Surge will transform all adjacent symbols to: ${targetSymbol.name}`);
+        
+        // Get all 8 adjacent positions (including diagonals)
         const adjacentPositions = this.getAdjacentPositions(row, col);
+        
+        // Transform ALL adjacent positions to the selected symbol type
         adjacentPositions.forEach(({row: r, col: c}) => {
-            if (this.grid.grid[r] && this.grid.grid[r][c] && 
-                this.grid.grid[r][c].id !== targetSymbol.id) {
+            if (this.grid.grid[r] && this.grid.grid[r][c]) {
+                // Always transform, regardless of current symbol
                 transformations.push({
                     position: {row: r, col: c},
                     symbol: targetSymbol
@@ -300,6 +322,7 @@ export class SpecialSymbolHandler {
             }
         });
         
+        console.log(`🎯 Surge will transform ${transformations.length} adjacent positions to ${targetSymbol.name}`);
         return transformations;
     }
     
