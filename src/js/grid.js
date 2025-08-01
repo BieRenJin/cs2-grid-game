@@ -61,6 +61,7 @@ export class GameGrid {
             // Animate the spin
             const cells = document.querySelectorAll('.grid-cell');
             const specialSymbolPositions = [];
+            let goldenSymbolPlaced = false; // Track if golden symbol is already placed
             
             cells.forEach((cell, index) => {
                 setTimeout(() => {
@@ -88,7 +89,25 @@ export class GameGrid {
                         
                         if (this.specialHandler.shouldAppearSpecialSymbol()) {
                             newSymbol = this.specialHandler.getRandomSpecialSymbol();
-                            specialSymbolPositions.push({row, col, symbol: newSymbol});
+                            
+                            // Check if this is a golden symbol (Rush or Multiplier)
+                            const isGoldenSymbol = newSymbol.id === 'rush' || newSymbol.id === 'multiplier';
+                            
+                            if (isGoldenSymbol && goldenSymbolPlaced) {
+                                // If golden symbol already placed, get regular symbol instead
+                                console.log('🚫 Golden symbol already placed, using regular symbol instead');
+                                newSymbol = getRandomSymbol(includeScatter);
+                                if (newSymbol.id === 'scatter') {
+                                    specialSymbolPositions.push({row, col, symbol: newSymbol});
+                                }
+                            } else {
+                                // Place the special symbol
+                                specialSymbolPositions.push({row, col, symbol: newSymbol});
+                                if (isGoldenSymbol) {
+                                    goldenSymbolPlaced = true;
+                                    console.log(`✨ Golden symbol (${newSymbol.name}) placed at [${row},${col}]`);
+                                }
+                            }
                         } else {
                             newSymbol = getRandomSymbol(includeScatter);
                             if (newSymbol.id === 'scatter') {
@@ -229,6 +248,19 @@ export class GameGrid {
     }
     
     
+    // Check if golden symbol already exists on the grid
+    hasGoldenSymbol() {
+        for (let row = 0; row < this.size; row++) {
+            for (let col = 0; col < this.size; col++) {
+                const symbol = this.grid[row][col];
+                if (symbol && (symbol.id === 'rush' || symbol.id === 'multiplier')) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
     // Calculate cascade for a column and return movements/new symbols
     calculateColumnCascade(col) {
         const movements = [];
@@ -253,8 +285,28 @@ export class GameGrid {
         }
         
         // Fill empty spaces with new symbols
+        const goldenSymbolExists = this.hasGoldenSymbol();
         for (let row = writePos; row >= 0; row--) {
-            const newSymbol = getRandomSymbol();
+            let newSymbol;
+            
+            // Generate symbol with golden symbol restriction
+            if (this.specialHandler.shouldAppearSpecialSymbol()) {
+                newSymbol = this.specialHandler.getRandomSpecialSymbol();
+                
+                // Check if this would be a golden symbol
+                const isGoldenSymbol = newSymbol.id === 'rush' || newSymbol.id === 'multiplier';
+                
+                if (isGoldenSymbol && goldenSymbolExists) {
+                    // If golden symbol already exists, use regular symbol instead
+                    console.log('🚫 Golden symbol already exists on grid, using regular symbol for cascade');
+                    newSymbol = getRandomSymbol();
+                } else if (isGoldenSymbol) {
+                    console.log(`✨ Golden symbol (${newSymbol.name}) added during cascade at [${row},${col}]`);
+                }
+            } else {
+                newSymbol = getRandomSymbol();
+            }
+            
             this.grid[row][col] = newSymbol;
             newSymbols.push({
                 symbol: newSymbol,
