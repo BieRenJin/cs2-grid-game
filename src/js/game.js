@@ -196,28 +196,16 @@ export class CS2GridGame {
                 return;
             }
             
-            console.log(`🔍 Evaluation depth: ${this.evaluationDepth}`);
+            console.log(`🔍 Evaluation cycle ${this.evaluationDepth}: CHECK WINS → REMOVE → CASCADE → CHECK EFFECTS → TRIGGER → CASCADE`);
             
-            // STEP 1: Apply special symbol effects FIRST (Rush, Surge, Slash)
-            await this.processSpecialSymbols();
-            
-            // STEP 2: Find clusters after special effects
+            // STEP 1: Check for winning clusters FIRST
             const clusters = this.grid.findClusters();
-            if (!clusters) {
-                console.warn('No clusters found, checking for scatters');
-                // Even without clusters, check for scatters at the end
-                const scattersTriggered = this.freeSpinsManager.checkForScatters();
-                if (scattersTriggered) {
-                    this.soundManager.play('scatter');
-                } else {
-                    this.endSpin();
-                }
-                return;
-            }
-            
             let totalWin = 0;
-        
-            if (clusters.length > 0) {
+            
+            if (clusters && clusters.length > 0) {
+                console.log(`💰 Found ${clusters.length} winning clusters`);
+                
+                // Calculate winnings
                 // Calculate winnings
                 clusters.forEach(cluster => {
                     try {
@@ -267,45 +255,44 @@ export class CS2GridGame {
                 }, 500);
                 
                 // New 4-phase elimination sequence
+                // STEP 2: Remove winning symbols and cascade
                 setTimeout(async () => {
                     try {
-                        console.log('🎯 Starting elimination sequence for', clusters.length, 'clusters');
-                        
-                        // Single step: Remove symbols with 4-phase animation
+                        console.log('🎯 Removing winning clusters and cascading');
                         await this.grid.removeWinningSymbols(clusters);
-                        
-                        // Play cascade sound after elimination is complete
                         this.soundManager.play('cascade');
                         
-                        // Quick evaluation for next wins
-                        const evaluationTimeout = setTimeout(() => {
-                            console.warn('Evaluation timeout, ending spin');
-                            this.endSpin();
-                        }, 8000);
-                        
+                        // After cascade, continue evaluation
                         setTimeout(() => {
-                            clearTimeout(evaluationTimeout);
-                            
-                            // Double-check that we're still in a valid state
-                            if (!this.isSpinning) {
-                                console.warn('Spin ended during cascade, stopping evaluation');
-                                return;
-                            }
-                            
-                            this.evaluateSpin(); // Check for cascading wins
-                        }, 800); // Wait for cascade animation to complete (longer for 4-phase)
-                    } catch (cascadeError) {
-                        console.error('Error during cascade:', cascadeError);
+                            this.evaluateSpin();
+                        }, 800);
+                    } catch (error) {
+                        console.error('Error during removal:', error);
                         this.endSpin();
                     }
-                }, 800); // Initial delay to show win highlights
+                }, 800); // Show win highlights briefly
+                
             } else {
-                // No wins, but check for scatters at the END
-                const scattersTriggered = this.freeSpinsManager.checkForScatters();
-                if (scattersTriggered) {
-                    this.soundManager.play('scatter');
+                // No wins found, check for special effects
+                console.log('💫 No wins found, checking for special effects');
+                
+                // STEP 3: Process special symbols if no wins
+                const hasSpecialEffects = await this.processSpecialSymbols();
+                
+                if (hasSpecialEffects) {
+                    // Special effects were triggered, continue evaluation after cascade
+                    setTimeout(() => {
+                        this.evaluateSpin();
+                    }, 800);
                 } else {
-                    this.endSpin();
+                    // No wins and no effects, check for scatters then end
+                    console.log('🏁 No wins or effects, checking for scatters');
+                    const scattersTriggered = this.freeSpinsManager.checkForScatters();
+                    if (scattersTriggered) {
+                        this.soundManager.play('scatter');
+                    } else {
+                        this.endSpin();
+                    }
                 }
             }
             
@@ -316,9 +303,9 @@ export class CS2GridGame {
         }
     }
     
-    // STEP 1: Process ALL special symbols truly simultaneously
+    // Process special symbols with priority order and simultaneous same-type triggering
     async processSpecialSymbols() {
-        console.log('⭐ Collecting ALL special symbol effects first');
+        console.log('⭐ Checking for special symbol effects');
         
         const specialSymbolPositions = [];
         
@@ -333,51 +320,83 @@ export class CS2GridGame {
         }
         
         if (specialSymbolPositions.length === 0) {
-            return; // No special symbols to process
+            return false; // No special symbols found
         }
         
-        console.log(`🎯 Found ${specialSymbolPositions.length} special symbols - collecting all effects first`);
+        console.log(`🎯 Found ${specialSymbolPositions.length} special symbols`);
         
-        // VISUAL: Show all special symbols activating simultaneously
-        await this.showSpecialSymbolsActivation(specialSymbolPositions);
+        // Separate symbols by type
+        const rushSymbols = specialSymbolPositions.filter(s => s.symbol.id === 'rush');
+        const surgeSymbols = specialSymbolPositions.filter(s => s.symbol.id === 'surge');
+        const slashSymbols = specialSymbolPositions.filter(s => s.symbol.id === 'slash');
         
-        // STEP 1: COLLECT all effects without applying them
-        const collectedEffects = {
-            wildPositions: new Set(), // Rush effects - positions where wilds will be added
-            transformations: new Map(), // Surge effects - position -> new symbol
-            eliminatedPositions: new Set() // Slash effects - positions to eliminate
-        };
+        let effectsTriggered = false;
         
-        // Collect Rush effects (add wilds)
-        specialSymbolPositions.filter(s => s.symbol.id === 'rush').forEach(({row, col}) => {
-            console.log(`🌟 Collecting RUSH effect at [${row},${col}]`);
-            const wildPositions = this.grid.specialHandler.getRushEffectPositions({row, col});
-            wildPositions.forEach(pos => collectedEffects.wildPositions.add(`${pos.row},${pos.col}`));
-        });
+        // Process in priority order: Rush -> Surge -> Slash
+        // Same type symbols trigger simultaneously
         
-        // Collect Surge effects (transform adjacent)
-        specialSymbolPositions.filter(s => s.symbol.id === 'surge').forEach(({row, col}) => {
-            console.log(`🌈 Collecting SURGE effect at [${row},${col}]`);
-            const transformations = this.grid.specialHandler.getSurgeEffectTransformations({row, col});
-            transformations.forEach(({position, symbol}) => {
-                collectedEffects.transformations.set(`${position.row},${position.col}`, symbol);
+        // PRIORITY 1: All Rush symbols trigger together
+        if (rushSymbols.length > 0) {
+            console.log(`🌟 ${rushSymbols.length} RUSH symbols triggering SIMULTANEOUSLY`);
+            await this.showSpecialSymbolsActivation(rushSymbols);
+            
+            const wildPositions = new Set();
+            rushSymbols.forEach(({row, col}) => {
+                console.log(`🌟 Rush at [${row},${col}] adding wilds`);
+                const positions = this.grid.specialHandler.getRushEffectPositions({row, col});
+                positions.forEach(pos => wildPositions.add(`${pos.row},${pos.col}`));
             });
-        });
+            
+            // Apply all Rush effects at once
+            if (wildPositions.size > 0) {
+                await this.applyRushEffects(wildPositions);
+                effectsTriggered = true;
+            }
+        }
         
-        // Collect Slash effects (remove lines)  
-        specialSymbolPositions.filter(s => s.symbol.id === 'slash').forEach(({row, col}) => {
-            console.log(`⚔️ Collecting SLASH effect at [${row},${col}]`);
-            const eliminatedPositions = this.grid.specialHandler.getSlashEffectPositions({row, col});
-            eliminatedPositions.forEach(pos => collectedEffects.eliminatedPositions.add(`${pos.row},${pos.col}`));
-        });
+        // PRIORITY 2: All Surge symbols trigger together
+        if (surgeSymbols.length > 0) {
+            console.log(`🌈 ${surgeSymbols.length} SURGE symbols triggering SIMULTANEOUSLY`);
+            await this.showSpecialSymbolsActivation(surgeSymbols);
+            
+            const transformations = new Map();
+            surgeSymbols.forEach(({row, col}) => {
+                console.log(`🌈 Surge at [${row},${col}] transforming adjacent`);
+                const transforms = this.grid.specialHandler.getSurgeEffectTransformations({row, col});
+                transforms.forEach(({position, symbol}) => {
+                    // Later transformations can override earlier ones
+                    transformations.set(`${position.row},${position.col}`, symbol);
+                });
+            });
+            
+            // Apply all Surge effects at once
+            if (transformations.size > 0) {
+                await this.applySurgeEffects(transformations);
+                effectsTriggered = true;
+            }
+        }
         
-        console.log(`📊 Collected effects: ${collectedEffects.wildPositions.size} wilds, ${collectedEffects.transformations.size} transforms, ${collectedEffects.eliminatedPositions.size} eliminations`);
+        // PRIORITY 3: All Slash symbols trigger together
+        if (slashSymbols.length > 0) {
+            console.log(`⚔️ ${slashSymbols.length} SLASH symbols triggering SIMULTANEOUSLY`);
+            await this.showSpecialSymbolsActivation(slashSymbols);
+            
+            const eliminatedPositions = new Set();
+            slashSymbols.forEach(({row, col}) => {
+                console.log(`⚔️ Slash at [${row},${col}] eliminating cross`);
+                const positions = this.grid.specialHandler.getSlashEffectPositions({row, col});
+                positions.forEach(pos => eliminatedPositions.add(`${pos.row},${pos.col}`));
+            });
+            
+            // Apply all Slash effects at once
+            if (eliminatedPositions.size > 0) {
+                await this.applySlashEffects(eliminatedPositions);
+                effectsTriggered = true;
+            }
+        }
         
-        // STEP 2: Apply ALL collected effects SIMULTANEOUSLY
-        console.log('🎆 Applying ALL effects simultaneously');
-        await this.applyCollectedEffects(collectedEffects);
-        
-        console.log('✅ All special symbol effects applied SIMULTANEOUSLY');
+        console.log(`✅ Special effects processing complete. Effects triggered: ${effectsTriggered}`);
+        return effectsTriggered;
     }
     
     // Show all special symbols activating simultaneously with visual effects
@@ -460,7 +479,57 @@ export class CS2GridGame {
         });
     }
     
-    // Apply all collected effects at once
+    // Apply Rush effects (add wilds)
+    async applyRushEffects(wildPositions) {
+        console.log(`⭐ Adding ${wildPositions.size} wild symbols`);
+        
+        wildPositions.forEach(posStr => {
+            const [row, col] = posStr.split(',').map(Number);
+            const wildSymbol = {
+                id: 'wild',
+                name: 'Wild',
+                icon: '💠',
+                color: '#FFD700',
+                isWild: true
+            };
+            this.grid.grid[row][col] = wildSymbol;
+            this.grid.updateCell(row, col, wildSymbol);
+        });
+    }
+    
+    // Apply Surge effects (transform symbols)
+    async applySurgeEffects(transformations) {
+        console.log(`🌈 Transforming ${transformations.size} positions`);
+        
+        transformations.forEach((newSymbol, posStr) => {
+            const [row, col] = posStr.split(',').map(Number);
+            this.grid.grid[row][col] = newSymbol;
+            this.grid.updateCell(row, col, newSymbol);
+        });
+    }
+    
+    // Apply Slash effects (eliminate symbols)
+    async applySlashEffects(eliminatedPositions) {
+        console.log(`⚔️ Eliminating ${eliminatedPositions.size} positions with slash`);
+        
+        // Show elimination preview
+        await this.showEliminationPreview(eliminatedPositions);
+        
+        // Create clusters for animation
+        const eliminatedClusters = [{
+            symbol: { name: 'Slash Elimination', id: 'slash-elimination' },
+            positions: Array.from(eliminatedPositions).map(posStr => {
+                const [row, col] = posStr.split(',').map(Number);
+                return {row, col};
+            }),
+            size: eliminatedPositions.size
+        }];
+        
+        // Use existing removal system
+        await this.grid.removeWinningSymbols(eliminatedClusters);
+    }
+    
+    // DEPRECATED: Apply all collected effects at once
     async applyCollectedEffects(effects) {
         // Apply transformations first (Surge effects) - these don't need cascading
         if (effects.transformations.size > 0) {
