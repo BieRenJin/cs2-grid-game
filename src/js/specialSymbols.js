@@ -9,7 +9,7 @@ export class SpecialSymbolHandler {
     // Rush Symbol - CT Badge: Adds 4-11 Wild symbols
     applyRushEffect(position) {
         const wildCount = Math.floor(Math.random() * 8) + 4; // 4-11 wilds
-        const positions = this.getRandomEmptyPositions(wildCount);
+        const positions = this.getRandomPositions(wildCount);
         
         positions.forEach(({row, col}) => {
             // Safety check for valid grid position
@@ -157,8 +157,8 @@ export class SpecialSymbolHandler {
         return removedPositions;
     }
     
-    // Get random empty positions on the grid
-    getRandomEmptyPositions(count) {
+    // Get random positions on the grid (can be any position, not just empty)
+    getRandomPositions(count) {
         const positions = [];
         const allPositions = [];
         
@@ -173,10 +173,25 @@ export class SpecialSymbolHandler {
         return shuffled.slice(0, Math.min(count, shuffled.length));
     }
     
-    // Get adjacent positions (up, down, left, right)
+    // Alias for backward compatibility
+    getRandomEmptyPositions(count) {
+        return this.getRandomPositions(count);
+    }
+    
+    // Get adjacent positions (all 8 directions including diagonals)
     getAdjacentPositions(row, col) {
         const positions = [];
-        const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+        // All 8 directions: up, up-right, right, down-right, down, down-left, left, up-left
+        const directions = [
+            [-1, 0],  // up
+            [-1, 1],  // up-right
+            [0, 1],   // right
+            [1, 1],   // down-right
+            [1, 0],   // down
+            [1, -1],  // down-left
+            [0, -1],  // left
+            [-1, -1]  // up-left
+        ];
         
         directions.forEach(([dr, dc]) => {
             const newRow = row + dr;
@@ -283,7 +298,7 @@ export class SpecialSymbolHandler {
     // Get positions where Rush effect will add wilds (without applying)
     getRushEffectPositions(position) {
         const wildCount = Math.floor(Math.random() * 8) + 4; // 4-11 wilds
-        return this.getRandomEmptyPositions(wildCount);
+        return this.getRandomPositions(wildCount);
     }
     
     // Get transformations that Surge effect will cause (without applying)
