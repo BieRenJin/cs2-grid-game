@@ -15,9 +15,9 @@ export class SpecialSymbolHandler {
         };
     }
     
-    // Rush Symbol - CT Badge: Adds 4-11 Wild symbols
+    // Rush Symbol - CT Badge: Adds 4-11 Wild symbols (weighted distribution)
     applyRushEffect(position) {
-        const wildCount = Math.floor(Math.random() * 8) + 4; // 4-11 wilds
+        const wildCount = this.getWeightedWildCount(); // Weighted 4-11 wilds
         const positions = this.getRandomPositions(wildCount);
         
         positions.forEach(({row, col}) => {
@@ -324,14 +324,14 @@ export class SpecialSymbolHandler {
     shouldAppearSpecialSymbol() {
         this.stats.totalSymbolsGenerated++;
         
-        // Total special symbol appearance rate: ~1.2% for better balance
-        const totalSpecialChance = 0.012; // 1.2% total chance for any special symbol
-        // This gives approximately 0.59 special symbols per spin (49 * 0.012)
+        // Total special symbol appearance rate: 0.78% for 97% RTP
+        const totalSpecialChance = 0.0078; // 0.78% total chance for any special symbol
+        // This gives approximately 0.38 special symbols per spin (49 * 0.0078)
         
         if (Math.random() < totalSpecialChance) {
             this.stats.specialSymbolsGenerated++;
             const currentRate = ((this.stats.specialSymbolsGenerated / this.stats.totalSymbolsGenerated) * 100).toFixed(2);
-            console.log(`🎰 Special symbol triggered! (1.2% chance, current rate: ${currentRate}%)`);
+            console.log(`🎰 Special symbol triggered! (0.78% chance, current rate: ${currentRate}%)`);
             return true;
         }
         return false;
@@ -459,7 +459,7 @@ export class SpecialSymbolHandler {
             totalSymbolsGenerated: this.stats.totalSymbolsGenerated,
             specialSymbolsGenerated: this.stats.specialSymbolsGenerated,
             actualRate: rate + '%',
-            targetRate: '1.2%',
+            targetRate: '0.78%',
             rushCount: this.stats.rushCount,
             surgeCount: this.stats.surgeCount,
             slashCount: this.stats.slashCount
@@ -476,5 +476,32 @@ export class SpecialSymbolHandler {
             slashCount: 0
         };
         console.log('📊 Special symbol statistics reset');
+    }
+
+    // Get weighted wild count for Rush effect (4 most likely, 11 least likely)
+    getWeightedWildCount() {
+        const wildCountWeights = [
+            { count: 4, weight: 40 },  // 40% chance for 4 wilds (highest)
+            { count: 5, weight: 25 },  // 25% chance for 5 wilds
+            { count: 6, weight: 15 },  // 15% chance for 6 wilds
+            { count: 7, weight: 10 },  // 10% chance for 7 wilds
+            { count: 8, weight: 5 },   // 5% chance for 8 wilds
+            { count: 9, weight: 3 },   // 3% chance for 9 wilds
+            { count: 10, weight: 1.5 }, // 1.5% chance for 10 wilds
+            { count: 11, weight: 0.5 }  // 0.5% chance for 11 wilds (lowest)
+        ];
+        
+        const totalWeight = wildCountWeights.reduce((sum, item) => sum + item.weight, 0);
+        let random = Math.random() * totalWeight;
+        
+        for (const item of wildCountWeights) {
+            random -= item.weight;
+            if (random <= 0) {
+                console.log(`⭐ Rush effect: generating ${item.count} wilds`);
+                return item.count;
+            }
+        }
+        
+        return 4; // Fallback to minimum
     }
 }
