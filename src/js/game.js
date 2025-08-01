@@ -514,9 +514,9 @@ export class CS2GridGame {
         });
     }
     
-    // Apply Rush effects (add wilds and transform Rush symbols to Rush symbols)
+    // Apply Rush effects (add wilds and remove Rush symbols to prevent infinite loop)
     async applyRushEffects(wildPositions, rushPositions) {
-        console.log(`⭐ Adding ${wildPositions.size} wild symbols and transforming ${rushPositions.length} Rush symbols`);
+        console.log(`⭐ Adding ${wildPositions.size} wild symbols and removing ${rushPositions.length} Rush symbols`);
         
         // Add wild symbols at random positions
         wildPositions.forEach(posStr => {
@@ -532,19 +532,39 @@ export class CS2GridGame {
             this.grid.updateCell(row, col, wildSymbol);
         });
         
-        // Transform the Rush symbols themselves to Rush symbols (ensure they remain)
+        // Remove the Rush symbols themselves (they disappear after triggering)
         rushPositions.forEach(({row, col}) => {
-            const rushSymbol = {
-                id: 'rush',
-                name: 'CT Badge',
-                icon: '⭐',
-                color: '#FFD700',
-                description: 'Adds 4-11 Wild symbols'
-            };
-            this.grid.grid[row][col] = rushSymbol;
-            this.grid.updateCell(row, col, rushSymbol);
-            console.log(`✨ Rush symbol at [${row},${col}] remains as Rush symbol`);
+            // Mark as null for removal during cascade
+            this.grid.grid[row][col] = null;
+            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (cell) {
+                cell.innerHTML = '';
+                cell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                cell.classList.remove('special-symbol');
+                cell.classList.add('temp-empty');
+            }
+            console.log(`✨ Rush symbol at [${row},${col}] disappears after triggering`);
         });
+        
+        // Trigger cascade to fill empty Rush positions
+        const affectedColumns = new Set();
+        rushPositions.forEach(({col}) => affectedColumns.add(col));
+        
+        if (affectedColumns.size > 0) {
+            const movements = [];
+            const newSymbols = [];
+            
+            affectedColumns.forEach(colIndex => {
+                const columnResult = this.grid.calculateColumnCascade(colIndex);
+                movements.push(...columnResult.movements);
+                newSymbols.push(...columnResult.newSymbols);
+            });
+            
+            // Animate the cascade
+            if (movements.length > 0 || newSymbols.length > 0) {
+                await this.grid.animations.animateCascade(movements, newSymbols);
+            }
+        }
     }
     
     // Apply Surge effects (transform symbols)
