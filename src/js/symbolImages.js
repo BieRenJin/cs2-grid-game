@@ -14,12 +14,9 @@ const SYMBOL_IMAGES = {
     scatter: '/assets/images/scatter.svg'
 };
 
-// Get symbol display content (image or emoji fallback)
+// Get symbol display content (force emoji display for clarity)
 export function getSymbolDisplay(symbol) {
-    const imagePath = SYMBOL_IMAGES[symbol.id];
-    if (imagePath) {
-        return `<img src="${imagePath}" alt="${symbol.name}" class="symbol-image" onerror="handleImageError(this)" /><span style="display:none;">${symbol.icon}</span>`;
-    }
+    // Always use emoji for better clarity and consistency
     return symbol.icon;
 }
 
