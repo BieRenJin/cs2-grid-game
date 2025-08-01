@@ -171,20 +171,33 @@ export class SpecialSymbolHandler {
         return removedPositions;
     }
     
-    // Get random positions on the grid (can be any position, not just empty)
+    // Get random positions for Wild symbols (only regular symbols, not special symbols)
     getRandomPositions(count) {
         const positions = [];
-        const allPositions = [];
+        const validPositions = [];
         
         for (let row = 0; row < this.grid.size; row++) {
             for (let col = 0; col < this.grid.size; col++) {
-                allPositions.push({row, col});
+                const currentSymbol = this.grid.grid[row][col];
+                
+                // Only include positions with regular symbols (not special symbols)
+                if (currentSymbol && !this.isSpecialSymbol(currentSymbol)) {
+                    validPositions.push({row, col});
+                }
             }
         }
         
+        console.log(`🎯 Found ${validPositions.length} valid positions for Wild placement (excluding special symbols)`);
+        
         // Shuffle and take first 'count' positions
-        const shuffled = allPositions.sort(() => Math.random() - 0.5);
+        const shuffled = validPositions.sort(() => Math.random() - 0.5);
         return shuffled.slice(0, Math.min(count, shuffled.length));
+    }
+    
+    // Helper method to check if a symbol is a special symbol
+    isSpecialSymbol(symbol) {
+        const specialIds = ['rush', 'surge', 'slash', 'scatter', 'multiplier'];
+        return specialIds.includes(symbol.id);
     }
     
     // Alias for backward compatibility

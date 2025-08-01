@@ -142,8 +142,8 @@ export class GameGrid {
                     if (!visited[row][col] && this.grid[row] && this.grid[row][col]) {
                         const currentSymbol = this.grid[row][col];
                         
-                        // Skip Wild symbols as starting points - they will be included when processing regular symbols
-                        if (currentSymbol.isWild) {
+                        // Skip Wild symbols and special symbols as starting points
+                        if (currentSymbol.isWild || this.isSpecialSymbol(currentSymbol)) {
                             continue;
                         }
                         
@@ -270,6 +270,12 @@ export class GameGrid {
         return false;
     }
     
+    // Helper method to check if a symbol is a special symbol
+    isSpecialSymbol(symbol) {
+        const specialIds = ['rush', 'surge', 'slash', 'scatter', 'multiplier'];
+        return specialIds.includes(symbol.id);
+    }
+    
     // Calculate cascade for a column and return movements/new symbols
     calculateColumnCascade(col) {
         const movements = [];
@@ -352,7 +358,10 @@ export class GameGrid {
         }
         
         const currentSymbol = this.grid[row][col];
-        if (!currentSymbol || (currentSymbol.id !== symbolId && !currentSymbol.isWild)) {
+        // Only match exact symbolId or Wild symbols, exclude special symbols
+        if (!currentSymbol || 
+            (currentSymbol.id !== symbolId && !currentSymbol.isWild) ||
+            (currentSymbol.id !== symbolId && this.isSpecialSymbol(currentSymbol))) {
             return [];
         }
         
