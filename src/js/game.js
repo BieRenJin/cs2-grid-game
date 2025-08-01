@@ -514,57 +514,32 @@ export class CS2GridGame {
         });
     }
     
-    // Apply Rush effects (add wilds and remove Rush symbols to prevent infinite loop)
+    // Apply Rush effects (add wilds and transform Rush symbols to Wild symbols)
     async applyRushEffects(wildPositions, rushPositions) {
-        console.log(`⭐ Adding ${wildPositions.size} wild symbols and removing ${rushPositions.length} Rush symbols`);
+        console.log(`⭐ Adding ${wildPositions.size} wild symbols and transforming ${rushPositions.length} Rush symbols to Wild`);
+        
+        // Create the Wild symbol definition
+        const wildSymbol = {
+            id: 'wild',
+            name: 'Wild',
+            icon: '💠',
+            color: '#FFD700',
+            isWild: true
+        };
         
         // Add wild symbols at random positions
         wildPositions.forEach(posStr => {
             const [row, col] = posStr.split(',').map(Number);
-            const wildSymbol = {
-                id: 'wild',
-                name: 'Wild',
-                icon: '💠',
-                color: '#FFD700',
-                isWild: true
-            };
             this.grid.grid[row][col] = wildSymbol;
             this.grid.updateCell(row, col, wildSymbol);
         });
         
-        // Remove the Rush symbols themselves (they disappear after triggering)
+        // Transform the Rush symbols themselves to Wild symbols (prevents infinite loop)
         rushPositions.forEach(({row, col}) => {
-            // Mark as null for removal during cascade
-            this.grid.grid[row][col] = null;
-            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-            if (cell) {
-                cell.innerHTML = '';
-                cell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                cell.classList.remove('special-symbol');
-                cell.classList.add('temp-empty');
-            }
-            console.log(`✨ Rush symbol at [${row},${col}] disappears after triggering`);
+            this.grid.grid[row][col] = wildSymbol;
+            this.grid.updateCell(row, col, wildSymbol);
+            console.log(`✨ Rush symbol at [${row},${col}] transforms to Wild symbol`);
         });
-        
-        // Trigger cascade to fill empty Rush positions
-        const affectedColumns = new Set();
-        rushPositions.forEach(({col}) => affectedColumns.add(col));
-        
-        if (affectedColumns.size > 0) {
-            const movements = [];
-            const newSymbols = [];
-            
-            affectedColumns.forEach(colIndex => {
-                const columnResult = this.grid.calculateColumnCascade(colIndex);
-                movements.push(...columnResult.movements);
-                newSymbols.push(...columnResult.newSymbols);
-            });
-            
-            // Animate the cascade
-            if (movements.length > 0 || newSymbols.length > 0) {
-                await this.grid.animations.animateCascade(movements, newSymbols);
-            }
-        }
     }
     
     // Apply Surge effects (transform symbols)
