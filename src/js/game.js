@@ -190,111 +190,25 @@ export class CS2GridGame {
             if (!this.evaluationDepth) this.evaluationDepth = 0;
             this.evaluationDepth++;
             
-            if (this.evaluationDepth > 10) {
+            if (this.evaluationDepth > 20) {
                 console.warn('Maximum evaluation depth reached, ending spin');
                 this.endSpin();
                 return;
             }
             
-            console.log(`🔍 Evaluation cycle ${this.evaluationDepth}: CHECK WINS → [REMOVE → CASCADE] → CHECK EFFECTS → [TRIGGER SINGLE EFFECT → CASCADE] → LOOP`);
+            console.log(`🔍 Starting evaluation cycle ${this.evaluationDepth}`);
             
-            // STEP 1: Check for winning clusters FIRST
-            const clusters = this.grid.findClusters();
-            let totalWin = 0;
+            // MAIN GAME LOOP: Process all wins first, then special effects
+            await this.processAllWins();
+            await this.processAllSpecialEffects();
             
-            if (clusters && clusters.length > 0) {
-                console.log(`💰 Found ${clusters.length} winning clusters`);
-                
-                // Calculate winnings
-                // Calculate winnings
-                clusters.forEach(cluster => {
-                    try {
-                        if (!cluster || !cluster.symbol || !cluster.symbol.paytable) {
-                            console.warn('Invalid cluster data:', cluster);
-                            return;
-                        }
-                        
-                        const symbol = cluster.symbol;
-                        const clusterSize = Math.min(cluster.size, 15);
-                        const basePayout = symbol.paytable[clusterSize] || symbol.paytable[15] || 0;
-                        const adjustedPayout = rtpManager.calculateVolatilityPayout(basePayout, clusterSize);
-                        totalWin += adjustedPayout * this.betAmount;
-                    } catch (clusterError) {
-                        console.error('Error processing cluster:', clusterError, cluster);
-                    }
-                });
-                
-                // Apply progressive multiplier in free spins
-                if (this.freeSpinsRemaining > 0) {
-                    totalWin *= this.progressiveMultiplier;
-                    if (!this.isSuperFreeSpins) {
-                        this.progressiveMultiplier++;
-                    }
-                }
-                
-                // Apply multiplier symbols if in free spins
-                if (this.freeSpinsRemaining > 0) {
-                    const symbolMultiplier = this.freeSpinsManager.calculateTotalMultiplier();
-                    totalWin *= symbolMultiplier;
-                }
-                
-                // Highlight winning clusters with enhanced visual feedback
-                this.grid.highlightWinningClusters(clusters);
-                
-                // Update balance and show win
-                this.balance += totalWin;
-                this.winAmountElement.textContent = totalWin.toFixed(2);
-                
-                // Play win sound
-                this.soundManager.playWinSound(totalWin, this.betAmount);
-                
-                // Add win celebration animation
-                this.winAmountElement.parentElement.classList.add('win-celebration');
-                setTimeout(() => {
-                    this.winAmountElement.parentElement.classList.remove('win-celebration');
-                }, 500);
-                
-                // New 4-phase elimination sequence
-                // STEP 2: Remove winning symbols and cascade
-                setTimeout(async () => {
-                    try {
-                        console.log('🎯 Removing winning clusters and cascading');
-                        await this.grid.removeWinningSymbols(clusters);
-                        this.soundManager.play('cascade');
-                        
-                        // After cascade, continue evaluation
-                        setTimeout(() => {
-                            this.evaluateSpin();
-                        }, 800);
-                    } catch (error) {
-                        console.error('Error during removal:', error);
-                        this.endSpin();
-                    }
-                }, 800); // Show win highlights briefly
-                
+            // If we get here, no more wins or effects - end the spin
+            console.log('🏁 No more wins or effects, checking for scatters');
+            const scattersTriggered = this.freeSpinsManager.checkForScatters();
+            if (scattersTriggered) {
+                this.soundManager.play('scatter');
             } else {
-                // No wins found, check for special effects
-                console.log('💫 No wins found, checking for special effects');
-                
-                // STEP 3: Process special symbols if no wins (one type at a time)
-                const triggeredEffect = await this.processSpecialSymbols();
-                
-                if (triggeredEffect) {
-                    // A special effect was triggered, continue full evaluation cycle
-                    console.log(`✨ ${triggeredEffect.toUpperCase()} effect triggered, continuing evaluation cycle`);
-                    setTimeout(() => {
-                        this.evaluateSpin();
-                    }, 800);
-                } else {
-                    // No wins and no effects, check for scatters then end
-                    console.log('🏁 No wins or effects, checking for scatters');
-                    const scattersTriggered = this.freeSpinsManager.checkForScatters();
-                    if (scattersTriggered) {
-                        this.soundManager.play('scatter');
-                    } else {
-                        this.endSpin();
-                    }
-                }
+                this.endSpin();
             }
             
             this.updateUI();
@@ -304,34 +218,115 @@ export class CS2GridGame {
         }
     }
     
-    // Process special symbols one type at a time, each triggering a full evaluation cycle
-    async processSpecialSymbols() {
-        console.log('⭐ Checking for special symbol effects');
+    // INNER WIN LOOP: Keep processing wins until there are no more
+    async processAllWins() {
+        console.log('🔄 Starting INNER WIN LOOP - processing all wins until none remain');
+        let winLoopCount = 0;
         
-        // Check for each type of special symbol in priority order
-        // Each type gets its own complete cycle: trigger → cascade → evaluate
-        
-        // PRIORITY 1: Rush symbols
-        const rushEffect = await this.processRushSymbols();
-        if (rushEffect) {
-            return 'rush'; // Return which effect was triggered
+        while (true) {
+            winLoopCount++;
+            console.log(`💰 Win loop iteration ${winLoopCount}: checking for clusters`);
+            
+            const clusters = this.grid.findClusters();
+            
+            if (!clusters || clusters.length === 0) {
+                console.log('✅ No more wins found, exiting WIN LOOP');
+                break;
+            }
+            
+            console.log(`💎 Found ${clusters.length} winning clusters - processing`);
+            let totalWin = 0;
+            
+            // Calculate winnings
+            clusters.forEach(cluster => {
+                try {
+                    if (!cluster || !cluster.symbol || !cluster.symbol.paytable) {
+                        console.warn('Invalid cluster data:', cluster);
+                        return;
+                    }
+                    
+                    const symbol = cluster.symbol;
+                    const clusterSize = Math.min(cluster.size, 15);
+                    const basePayout = symbol.paytable[clusterSize] || symbol.paytable[15] || 0;
+                    const adjustedPayout = rtpManager.calculateVolatilityPayout(basePayout, clusterSize);
+                    totalWin += adjustedPayout * this.betAmount;
+                } catch (clusterError) {
+                    console.error('Error processing cluster:', clusterError, cluster);
+                }
+            });
+            
+            // Apply progressive multiplier in free spins
+            if (this.freeSpinsRemaining > 0) {
+                totalWin *= this.progressiveMultiplier;
+                if (!this.isSuperFreeSpins) {
+                    this.progressiveMultiplier++;
+                }
+            }
+            
+            // Apply multiplier symbols if in free spins
+            if (this.freeSpinsRemaining > 0) {
+                const symbolMultiplier = this.freeSpinsManager.calculateTotalMultiplier();
+                totalWin *= symbolMultiplier;
+            }
+            
+            // Update balance and show win
+            this.balance += totalWin;
+            this.winAmountElement.textContent = totalWin.toFixed(2);
+            
+            // Play win sound
+            this.soundManager.playWinSound(totalWin, this.betAmount);
+            
+            // Highlight and remove winning symbols
+            this.grid.highlightWinningClusters(clusters);
+            
+            // Wait for highlight display, then remove and cascade
+            await new Promise(resolve => {
+                setTimeout(async () => {
+                    try {
+                        console.log('🎯 Removing clusters and cascading');
+                        await this.grid.removeWinningSymbols(clusters);
+                        this.soundManager.play('cascade');
+                        
+                        // Wait for cascade to complete before next iteration
+                        setTimeout(() => {
+                            resolve();
+                        }, 800);
+                    } catch (error) {
+                        console.error('Error during removal:', error);
+                        resolve();
+                    }
+                }, 800);
+            });
         }
         
-        // PRIORITY 2: Surge symbols  
-        const surgeEffect = await this.processSurgeSymbols();
-        if (surgeEffect) {
-            return 'surge';
-        }
-        
-        // PRIORITY 3: Slash symbols
-        const slashEffect = await this.processSlashSymbols();
-        if (slashEffect) {
-            return 'slash';
-        }
-        
-        console.log('✅ No special effects found');
-        return false; // No effects triggered
+        console.log(`✅ WIN LOOP completed after ${winLoopCount} iterations`);
     }
+    
+    // OUTER SPECIAL EFFECTS LOOP: Process each effect type with its own win processing
+    async processAllSpecialEffects() {
+        console.log('🌟 Starting OUTER SPECIAL EFFECTS LOOP');
+        
+        // Process Rush effects
+        if (await this.processRushSymbols()) {
+            console.log('⭐ Rush effects triggered - processing resulting wins');
+            await this.processAllWins(); // Process all wins from Rush effects
+        }
+        
+        // Process Surge effects  
+        if (await this.processSurgeSymbols()) {
+            console.log('🌈 Surge effects triggered - processing resulting wins');
+            await this.processAllWins(); // Process all wins from Surge effects
+        }
+        
+        // Process Slash effects
+        if (await this.processSlashSymbols()) {
+            console.log('⚔️ Slash effects triggered - processing resulting wins');
+            await this.processAllWins(); // Process all wins from Slash effects
+        }
+        
+        console.log('✅ SPECIAL EFFECTS LOOP completed');
+    }
+    
     
     // Process all Rush symbols as a group
     async processRushSymbols() {
