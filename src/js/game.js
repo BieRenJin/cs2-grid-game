@@ -347,9 +347,9 @@ export class CS2GridGame {
                 positions.forEach(pos => wildPositions.add(`${pos.row},${pos.col}`));
             });
             
-            // Apply all Rush effects at once
-            if (wildPositions.size > 0) {
-                await this.applyRushEffects(wildPositions);
+            // Apply all Rush effects at once (including keeping Rush symbols as Rush symbols)
+            if (wildPositions.size > 0 || rushSymbols.length > 0) {
+                await this.applyRushEffects(wildPositions, rushSymbols);
                 effectsTriggered = true;
             }
         }
@@ -479,10 +479,11 @@ export class CS2GridGame {
         });
     }
     
-    // Apply Rush effects (add wilds)
-    async applyRushEffects(wildPositions) {
-        console.log(`⭐ Adding ${wildPositions.size} wild symbols`);
+    // Apply Rush effects (add wilds and transform Rush symbols to Rush symbols)
+    async applyRushEffects(wildPositions, rushPositions) {
+        console.log(`⭐ Adding ${wildPositions.size} wild symbols and transforming ${rushPositions.length} Rush symbols`);
         
+        // Add wild symbols at random positions
         wildPositions.forEach(posStr => {
             const [row, col] = posStr.split(',').map(Number);
             const wildSymbol = {
@@ -494,6 +495,20 @@ export class CS2GridGame {
             };
             this.grid.grid[row][col] = wildSymbol;
             this.grid.updateCell(row, col, wildSymbol);
+        });
+        
+        // Transform the Rush symbols themselves to Rush symbols (ensure they remain)
+        rushPositions.forEach(({row, col}) => {
+            const rushSymbol = {
+                id: 'rush',
+                name: 'CT Badge',
+                icon: '⭐',
+                color: '#FFD700',
+                description: 'Adds 4-11 Wild symbols'
+            };
+            this.grid.grid[row][col] = rushSymbol;
+            this.grid.updateCell(row, col, rushSymbol);
+            console.log(`✨ Rush symbol at [${row},${col}] remains as Rush symbol`);
         });
     }
     
