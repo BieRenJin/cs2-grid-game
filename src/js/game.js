@@ -338,6 +338,9 @@ export class CS2GridGame {
         
         console.log(`🎯 Found ${specialSymbolPositions.length} special symbols - collecting all effects first`);
         
+        // VISUAL: Show all special symbols activating simultaneously
+        await this.showSpecialSymbolsActivation(specialSymbolPositions);
+        
         // STEP 1: COLLECT all effects without applying them
         const collectedEffects = {
             wildPositions: new Set(), // Rush effects - positions where wilds will be added
@@ -377,6 +380,86 @@ export class CS2GridGame {
         console.log('✅ All special symbol effects applied SIMULTANEOUSLY');
     }
     
+    // Show all special symbols activating simultaneously with visual effects
+    async showSpecialSymbolsActivation(specialSymbolPositions) {
+        return new Promise(resolve => {
+            console.log(`✨ Showing ${specialSymbolPositions.length} special symbols activating SIMULTANEOUSLY`);
+            
+            // Add activation effect to ALL special symbols at exactly the same time
+            specialSymbolPositions.forEach(({row, col, symbol}) => {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (cell) {
+                    // Add intense activation glow
+                    cell.classList.add('special-activation');
+                    cell.style.position = 'relative';
+                    cell.style.zIndex = '200';
+                    
+                    // Create synchronized activation pulse
+                    const activationPulse = document.createElement('div');
+                    activationPulse.className = 'special-activation-pulse';
+                    activationPulse.style.cssText = `
+                        position: absolute;
+                        top: -8px;
+                        left: -8px;
+                        right: -8px;
+                        bottom: -8px;
+                        border: 4px solid ${symbol.id === 'rush' ? '#FFD700' : symbol.id === 'surge' ? '#FF69B4' : '#FF4500'};
+                        border-radius: 12px;
+                        animation: specialActivation 0.8s ease-in-out 2;
+                        pointer-events: none;
+                        z-index: 201;
+                    `;
+                    cell.appendChild(activationPulse);
+                    
+                    // Add symbol type indicator
+                    const typeIndicator = document.createElement('div');
+                    typeIndicator.className = 'special-type-indicator';
+                    typeIndicator.textContent = symbol.id.toUpperCase();
+                    typeIndicator.style.cssText = `
+                        position: absolute;
+                        top: -20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: ${symbol.id === 'rush' ? '#FFD700' : symbol.id === 'surge' ? '#FF69B4' : '#FF4500'};
+                        color: white;
+                        padding: 2px 8px;
+                        border-radius: 12px;
+                        font-size: 10px;
+                        font-weight: bold;
+                        z-index: 202;
+                        animation: fadeInOut 1.6s ease-in-out;
+                    `;
+                    cell.appendChild(typeIndicator);
+                }
+            });
+            
+            // Play special activation sound
+            if (window.game && window.game.soundManager) {
+                window.game.soundManager.play('special');
+            }
+            
+            // Remove effects after animation
+            setTimeout(() => {
+                specialSymbolPositions.forEach(({row, col}) => {
+                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    if (cell) {
+                        cell.classList.remove('special-activation');
+                        cell.style.zIndex = '';
+                        
+                        // Remove pulse and indicator elements
+                        const pulse = cell.querySelector('.special-activation-pulse');
+                        const indicator = cell.querySelector('.special-type-indicator');
+                        if (pulse) pulse.remove();
+                        if (indicator) indicator.remove();
+                    }
+                });
+                
+                console.log('✅ Special symbol activation display complete');
+                resolve();
+            }, 1600); // Match animation duration
+        });
+    }
+    
     // Apply all collected effects at once
     async applyCollectedEffects(effects) {
         // Apply transformations first (Surge effects) - these don't need cascading
@@ -406,13 +489,16 @@ export class CS2GridGame {
             });
         }
         
-        // Apply eliminations with proper cascade animation (Slash effects)
+        // Apply eliminations with simultaneous visual feedback (Slash effects)
         if (effects.eliminatedPositions.size > 0) {
-            console.log(`🗑️ Eliminating ${effects.eliminatedPositions.size} positions with cascade animation`);
+            console.log(`🗑️ Eliminating ${effects.eliminatedPositions.size} positions SIMULTANEOUSLY`);
             
-            // Create fake clusters for the elimination animation system
+            // STEP 1: Show elimination preview - all positions flash simultaneously
+            await this.showEliminationPreview(effects.eliminatedPositions);
+            
+            // STEP 2: Create clusters for proper cascade animation
             const eliminatedClusters = [{
-                symbol: { name: 'Special Elimination', id: 'special-elimination' },
+                symbol: { name: 'Simultaneous Slash Elimination', id: 'slash-elimination' },
                 positions: Array.from(effects.eliminatedPositions).map(posStr => {
                     const [row, col] = posStr.split(',').map(Number);
                     return {row, col};
@@ -420,9 +506,94 @@ export class CS2GridGame {
                 size: effects.eliminatedPositions.size
             }];
             
-            // Use the existing removal system with cascade animation
+            // STEP 3: Use the existing removal system with cascade animation
             await this.grid.removeWinningSymbols(eliminatedClusters);
+            
+            console.log('✅ All Slash eliminations completed simultaneously');
         }
+    }
+    
+    // Show elimination preview - all positions that will be eliminated flash simultaneously
+    async showEliminationPreview(eliminatedPositions) {
+        return new Promise(resolve => {
+            console.log(`⚡ Showing elimination preview for ${eliminatedPositions.size} positions SIMULTANEOUSLY`);
+            
+            // Add elimination preview effect to ALL positions at exactly the same time
+            eliminatedPositions.forEach(posStr => {
+                const [row, col] = posStr.split(',').map(Number);
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                
+                if (cell) {
+                    // Add intense elimination warning
+                    cell.classList.add('elimination-preview');
+                    cell.style.position = 'relative';
+                    cell.style.zIndex = '150';
+                    
+                    // Create synchronized elimination warning
+                    const eliminationWarning = document.createElement('div');
+                    eliminationWarning.className = 'elimination-warning';
+                    eliminationWarning.style.cssText = `
+                        position: absolute;
+                        top: -4px;
+                        left: -4px;
+                        right: -4px;
+                        bottom: -4px;
+                        border: 3px solid #FF4500;
+                        border-radius: 8px;
+                        animation: eliminationWarning 0.6s ease-in-out 3;
+                        pointer-events: none;
+                        z-index: 151;
+                        box-shadow: 0 0 15px #FF4500;
+                    `;
+                    cell.appendChild(eliminationWarning);
+                    
+                    // Add "X" mark to show it will be eliminated
+                    const eliminationMark = document.createElement('div');
+                    eliminationMark.className = 'elimination-mark';
+                    eliminationMark.textContent = '✗';
+                    eliminationMark.style.cssText = `
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        color: #FF4500;
+                        font-size: 24px;
+                        font-weight: bold;
+                        z-index: 152;
+                        animation: eliminationMarkPulse 0.6s ease-in-out 3;
+                        text-shadow: 0 0 10px #FF4500;
+                    `;
+                    cell.appendChild(eliminationMark);
+                }
+            });
+            
+            // Play elimination warning sound
+            if (window.game && window.game.soundManager) {
+                window.game.soundManager.play('warning');
+            }
+            
+            // Remove preview effects after animation
+            setTimeout(() => {
+                eliminatedPositions.forEach(posStr => {
+                    const [row, col] = posStr.split(',').map(Number);
+                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    
+                    if (cell) {
+                        cell.classList.remove('elimination-preview');
+                        cell.style.zIndex = '';
+                        
+                        // Remove warning and mark elements
+                        const warning = cell.querySelector('.elimination-warning');
+                        const mark = cell.querySelector('.elimination-mark');
+                        if (warning) warning.remove();
+                        if (mark) mark.remove();
+                    }
+                });
+                
+                console.log('✅ Elimination preview complete - proceeding with actual elimination');
+                resolve();
+            }, 1800); // 0.6s × 3 iterations = 1.8s
+        });
     }
     
     endSpin() {
