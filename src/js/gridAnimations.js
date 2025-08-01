@@ -6,208 +6,930 @@ export class GridAnimations {
         this.grid = grid;
         this.gridElement = document.getElementById('game-grid');
         this.cellSize = this.gridElement.offsetWidth / this.grid.size;
+        
+        // Animation state management
+        this.isAnimating = false;
+        this.animationQueue = [];
+        this.currentAnimationPhase = 'idle'; // idle, elimination, cascade, special
+        this.pendingAnimations = new Set(); // Track active animations
     }
     
-    // Animate removal with particle effects
+    // Animation state management methods
+    startAnimation(phase) {
+        console.log(`🎬 Starting animation phase: ${phase}`);
+        this.isAnimating = true;
+        this.currentAnimationPhase = phase;
+        
+        // Disable spin button during animations
+        if (window.game && window.game.spinButton) {
+            window.game.spinButton.disabled = true;
+            window.game.spinButton.style.opacity = '0.5';
+            window.game.spinButton.style.cursor = 'not-allowed';
+            window.game.spinButton.textContent = 'ANIMATING...';
+            
+            // Add visual pulse effect to indicate active animation
+            window.game.spinButton.style.animation = 'pulse 1s infinite';
+        }
+    }
+    
+    endAnimation(phase) {
+        console.log(`✅ Completed animation phase: ${phase}`);
+        this.currentAnimationPhase = 'idle';
+        
+        // Check if all animations are complete
+        if (this.pendingAnimations.size === 0) {
+            this.isAnimating = false;
+            console.log('🏁 All animations complete, enabling controls');
+            
+            // Re-enable spin button
+            if (window.game && window.game.spinButton) {
+                window.game.spinButton.disabled = false;
+                window.game.spinButton.style.opacity = '1';
+                window.game.spinButton.style.cursor = 'pointer';
+                window.game.spinButton.style.animation = ''; // Remove pulse
+                if (window.game.freeSpinsRemaining > 0) {
+                    window.game.spinButton.textContent = `FREE SPIN (${window.game.freeSpinsRemaining})`;
+                } else {
+                    window.game.spinButton.textContent = 'SPIN';
+                }
+            }
+        }
+    }
+    
+    // Check if any animations are currently playing
+    isAnimationActive() {
+        return this.isAnimating || this.pendingAnimations.size > 0;
+    }
+    
+    // Wait for all animations to complete
+    async waitForAnimationsComplete() {
+        return new Promise(resolve => {
+            const checkComplete = () => {
+                if (!this.isAnimationActive()) {
+                    resolve();
+                } else {
+                    setTimeout(checkComplete, 100);
+                }
+            };
+            checkComplete();
+        });
+    }
+    
+    // Enhanced elimination animation with clear phases
     animateRemoval(clusters) {
         return new Promise(resolve => {
-            // First, mark all cells for removal with flash effect
+            // Prevent overlapping animations
+            if (this.isAnimationActive()) {
+                console.warn('⚠️ Animation already active, waiting for completion');
+                this.waitForAnimationsComplete().then(() => {
+                    // Retry after current animations complete
+                    this.animateRemoval(clusters).then(resolve);
+                });
+                return;
+            }
+            
+            this.startAnimation('elimination');
+            const animationId = 'elimination-' + Date.now();
+            this.pendingAnimations.add(animationId);
+            
+            console.log('🎆 Starting 4-phase elimination animation');
+            
+            // Phase 1: Highlight symbols to be eliminated (750ms)
+            this.highlightForElimination(clusters).then(() => {
+                // Phase 2: Clear the cells completely (300ms)
+                return this.clearCells(clusters);
+            }).then(() => {
+                // Phase 3: Show empty cells clearly (500ms pause)
+                return this.showEmptyCells(clusters);
+            }).then(() => {
+                // Phase 4: Ready for cascade
+                console.log('✅ Empty cells shown, ready for cascade');
+                this.pendingAnimations.delete(animationId);
+                this.endAnimation('elimination');
+                resolve();
+            });
+        });
+    }
+    
+    // Phase 1: Highlight symbols that will be eliminated
+    highlightForElimination(clusters) {
+        return new Promise(resolve => {
+            console.log('📍 Phase 1: Highlighting symbols for elimination');
+            
             clusters.forEach(cluster => {
                 cluster.positions.forEach(({row, col}) => {
                     const cell = this.getCell(row, col);
                     if (cell) {
-                        // Add flash effect before removal
-                        cell.style.transition = 'none';
-                        cell.style.filter = 'brightness(2)';
+                        // Clear previous states
+                        cell.classList.remove('winning-flash');
                         
-                        setTimeout(() => {
-                            cell.style.transition = 'all 0.3s ease-out';
-                            cell.classList.add('symbol-remove');
-                        }, 50);
+                        // Add elimination highlight
+                        cell.classList.add('elimination-highlight');
+                        cell.style.zIndex = '100';
+                        
+                        // Add pulsing border effect
+                        const pulseEffect = document.createElement('div');
+                        pulseEffect.className = 'elimination-pulse';
+                        pulseEffect.style.cssText = `
+                            position: absolute;
+                            top: -4px;
+                            left: -4px;
+                            right: -4px;
+                            bottom: -4px;
+                            border: 4px solid #FF0000;
+                            border-radius: 8px;
+                            animation: eliminationPulse 0.4s ease-in-out 3;
+                            animation-fill-mode: forwards;
+                            pointer-events: none;
+                            z-index: 101;
+                        `;
+                        cell.style.position = 'relative';
+                        cell.appendChild(pulseEffect);
                     }
                 });
             });
             
-            // Clear cells after animation
+            // Show highlight for 750ms
+            setTimeout(() => {
+                console.log('✅ Phase 1 complete: Symbols highlighted');
+                resolve();
+            }, 750);
+        });
+    }
+    
+    // Phase 2: Clear cells completely (leave empty spaces)
+    clearCells(clusters) {
+        return new Promise(resolve => {
+            console.log('🗑️ Phase 2: Clearing eliminated cells');
+            
+            clusters.forEach(cluster => {
+                cluster.positions.forEach(({row, col}) => {
+                    const cell = this.getCell(row, col);
+                    if (cell) {
+                        // Add disappearing animation
+                        cell.style.transition = 'all 0.3s ease-out';
+                        cell.style.transform = 'scale(0) rotate(360deg)';
+                        cell.style.opacity = '0';
+                        
+                        // Remove pulse effect
+                        const pulseEffect = cell.querySelector('.elimination-pulse');
+                        if (pulseEffect) {
+                            pulseEffect.remove();
+                        }
+                    }
+                });
+            });
+            
+            // Complete clearing after animation
             setTimeout(() => {
                 clusters.forEach(cluster => {
                     cluster.positions.forEach(({row, col}) => {
                         const cell = this.getCell(row, col);
                         if (cell) {
-                            cell.textContent = '';
-                            cell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                            // Completely clear the cell
+                            cell.innerHTML = '';
+                            cell.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; // Very faint background
+                            cell.style.border = '1px dashed rgba(255, 255, 255, 0.2)'; // Show empty space
                             cell.style.filter = '';
-                            cell.classList.remove('symbol-remove', 'winning', 'special-symbol', 'wild-symbol');
+                            cell.style.transform = '';
+                            cell.style.opacity = '1'; // Make the empty cell visible
+                            cell.style.zIndex = '';
+                            cell.classList.remove('elimination-highlight', 'symbol-remove', 'winning', 'special-symbol', 'wild-symbol');
+                            cell.classList.add('empty-cell'); // Mark as empty (invisible)
                         }
                     });
                 });
+                
+                console.log('✅ Phase 2 complete: Cells cleared and marked empty');
                 resolve();
             }, 300);
         });
     }
     
-    // Animate cascade with improved physics
-    animateCascade(movements, newSymbols) {
-        // Group movements by column for better coordination
-        const columnMovements = {};
-        movements.forEach(move => {
-            if (!columnMovements[move.col]) {
-                columnMovements[move.col] = [];
-            }
-            columnMovements[move.col].push(move);
-        });
-        
-        // Animate each column
-        Object.entries(columnMovements).forEach(([col, moves]) => {
-            this.animateColumnDrop(parseInt(col), moves);
-        });
-        
-        // Animate new symbols dropping
-        setTimeout(() => {
-            this.animateNewSymbols(newSymbols);
-        }, 200);
-    }
-    
-    // Animate a single column's drops
-    animateColumnDrop(col, movements) {
-        movements.forEach(({symbol, fromRow, toRow}) => {
-            const dropDistance = (toRow - fromRow) * this.cellSize;
-            const fallDuration = Math.sqrt(dropDistance / 500) * 0.8; // Physics-based duration
+    // Phase 3: Show empty cells clearly before cascade starts
+    showEmptyCells(clusters) {
+        return new Promise(resolve => {
+            console.log('🕳️ Phase 3: Showing empty cells clearly');
             
-            // Create animated element
-            const animatedSymbol = this.createAnimatedSymbol(symbol, fromRow, col);
-            
-            // Clear original cell
-            const fromCell = this.getCell(fromRow, col);
-            if (fromCell) {
-                fromCell.textContent = '';
-                fromCell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-            }
-            
-            // Animate with acceleration curve
-            requestAnimationFrame(() => {
-                animatedSymbol.style.transition = `transform ${fallDuration}s cubic-bezier(0.33, 0, 0.67, 0)`;
-                animatedSymbol.style.transform = `translateY(${dropDistance}px)`;
+            clusters.forEach(cluster => {
+                cluster.positions.forEach(({row, col}) => {
+                    const cell = this.getCell(row, col);
+                    if (cell) {
+                        // Add temporary visibility for elimination animation
+                        cell.classList.add('elimination-empty');
+                        cell.style.backgroundColor = '';
+                        cell.style.border = '';
+                        cell.style.borderRadius = '';
+                        
+                        // Add a subtle pulsing dot in the center (with finite animation)
+                        const emptyDot = document.createElement('div');
+                        emptyDot.className = 'empty-cell-dot';
+                        emptyDot.style.cssText = `
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            width: 12px;
+                            height: 12px;
+                            background: rgba(255, 255, 255, 0.5);
+                            border-radius: 50%;
+                            transform: translate(-50%, -50%);
+                            animation: emptyPulse 0.8s ease-in-out 3;
+                            animation-fill-mode: forwards;
+                        `;
+                        cell.appendChild(emptyDot);
+                        
+                        // Auto-remove the dot after animation completes
+                        setTimeout(() => {
+                            if (emptyDot.parentNode) {
+                                emptyDot.remove();
+                            }
+                        }, 2400); // 0.8s × 3 iterations = 2.4s
+                        
+                        // Update grid state to null for these positions
+                        this.grid.grid[row][col] = null;
+                    }
+                });
             });
             
-            // Handle landing
+            // Show empty state for 500ms so player can clearly see the gaps
             setTimeout(() => {
-                this.handleLanding(toRow, col, symbol, animatedSymbol);
-            }, fallDuration * 1000);
+                console.log('✅ Phase 3 complete: Empty cells displayed');
+                resolve();
+            }, 500);
         });
     }
     
-    // Animate new symbols falling from above
-    animateNewSymbols(newSymbols) {
-        newSymbols.forEach(({symbol, row, col, dropDistance}, index) => {
-            const totalDistance = this.cellSize * (dropDistance + row + 1);
-            const fallDuration = Math.sqrt(totalDistance / 500) * 0.8;
+    // Two-phase cascade animation: existing items settle down, then new items fall
+    async animateCascade(movements, newSymbols) {
+        // Wait for any active animations to complete before cascade
+        if (this.isAnimationActive()) {
+            console.warn('⚠️ Waiting for active animations to complete before cascade');
+            await this.waitForAnimationsComplete();
+        }
+        
+        return new Promise(async (resolve) => {
+            this.startAnimation('cascade');
+            const animationId = 'cascade-' + Date.now();
+            this.pendingAnimations.add(animationId);
             
-            // Create symbol above grid
-            const animatedSymbol = this.createAnimatedSymbol(symbol, -dropDistance - 1, col);
-            animatedSymbol.style.opacity = '0';
+            console.log('⬇️ Starting synchronized two-phase cascade animation');
             
-            // Stagger the drops
-            setTimeout(() => {
-                animatedSymbol.style.opacity = '1';
-                animatedSymbol.style.transition = `transform ${fallDuration}s cubic-bezier(0.33, 0, 0.67, 0), opacity 0.2s`;
-                animatedSymbol.style.transform = `translateY(${totalDistance}px)`;
+            // Clean up empty cell styles and dots
+            document.querySelectorAll('.empty-cell').forEach(cell => {
+                cell.style.border = '';
+                cell.style.backgroundColor = '';
+                cell.classList.remove('empty-cell', 'elimination-empty');
+            });
+            
+            // Remove empty cell dots
+            document.querySelectorAll('.empty-cell-dot').forEach(dot => {
+                dot.remove();
+            });
+            
+            try {
+                // Phase 1: Existing symbols drop simultaneously
+                if (movements.length > 0) {
+                    console.log(`📍 Phase 1: ${movements.length} existing items dropping simultaneously`);
+                    await this.animateExistingItemsSettling(movements);
+                }
                 
-                // Handle landing
-                setTimeout(() => {
-                    this.handleLanding(row, col, symbol, animatedSymbol);
-                }, fallDuration * 1000);
-            }, index * 30);
+                // Phase 2: New symbols drop simultaneously after existing ones settle
+                if (newSymbols.length > 0) {
+                    // Small pause between phases for visual clarity
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    console.log(`📍 Phase 2: ${newSymbols.length} new items dropping simultaneously`);
+                    await this.animateNewItemsDropping(newSymbols);
+                }
+                
+                // Final verification
+                this.verifyAllCellsHaveContent();
+                
+                // End cascade animation
+                this.pendingAnimations.delete(animationId);
+                this.endAnimation('cascade');
+                
+                console.log('✅ All cascade animations completed');
+                resolve();
+                
+            } catch (error) {
+                console.error('Error in cascade animation:', error);
+                this.pendingAnimations.delete(animationId);
+                this.endAnimation('cascade');
+                resolve();
+            }
         });
     }
     
-    // Create animated symbol element
-    createAnimatedSymbol(symbol, row, col) {
-        const element = document.createElement('div');
-        element.className = 'grid-cell falling-symbol';
-        element.innerHTML = getSymbolDisplayWithLog(symbol);
-        element.style.backgroundColor = symbol.color + '33';
-        element.style.position = 'absolute';
-        element.style.width = this.cellSize + 'px';
-        element.style.height = this.cellSize + 'px';
-        element.style.zIndex = '1000';
-        
-        // Position it
-        const x = col * this.cellSize;
-        const y = row * this.cellSize;
-        element.style.left = x + 'px';
-        element.style.top = y + 'px';
-        
-        this.gridElement.appendChild(element);
-        return element;
-    }
-    
-    // Handle landing with impact effect
-    handleLanding(row, col, symbol, animatedElement) {
-        try {
-            const cell = this.getCell(row, col);
-            if (!cell) {
-                animatedElement.remove();
+    // Phase 1: Animate existing items settling down from their current positions
+    animateExistingItemsSettling(movements) {
+        return new Promise(resolve => {
+            console.log('🔽 Phase 1: Existing items dropping simultaneously across all columns');
+            
+            let completedItems = 0;
+            const totalItems = movements.length;
+            
+            if (totalItems === 0) {
+                resolve();
                 return;
             }
             
-            // Update cell content
-            this.grid.updateCell(row, col, symbol);
-            
-            // Create dust effect
-            this.createDustEffect(row, col);
-            
-            // Apply squash effect
-            cell.style.animation = 'none';
-            requestAnimationFrame(() => {
-                cell.style.animation = 'landingImpact 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+            // Start all existing item animations simultaneously
+            movements.forEach((move) => {
+                this.animateExistingItemSettle(move, () => {
+                    completedItems++;
+                    if (completedItems === totalItems) {
+                        setTimeout(() => {
+                            console.log('✅ Phase 1 complete: All existing items settled simultaneously');
+                            resolve();
+                        }, 200); // Small buffer
+                    }
+                });
             });
             
-            // Remove animated element
-            animatedElement.remove();
-            
-            // Play impact sound if available
-            if (window.game && window.game.soundManager) {
-                window.game.soundManager.play('cascade');
+            // Fallback resolve in case something goes wrong
+            setTimeout(() => {
+                resolve();
+            }, 2000);
+        });
+    }
+    
+    // Phase 2: Animate new items dropping from above (long drop with rotation)
+    animateNewItemsDropping(newSymbols) {
+        return new Promise((resolve) => {
+            if (newSymbols.length === 0) {
+                resolve();
+                return;
             }
-        } catch (error) {
-            console.error('Error in handleLanding:', error);
-            if (animatedElement) animatedElement.remove();
+            
+            console.log('🌟 Phase 2: New items dropping from above - all columns simultaneously');
+            
+            // First pass: Set up all content without animation
+            newSymbols.forEach((newSymbol) => {
+                const { symbol, row, col } = newSymbol;
+                const targetCell = this.getCell(row, col);
+                if (targetCell) {
+                    // Update grid state
+                    this.grid.grid[row][col] = symbol;
+                    // Set content immediately
+                    this.setCellContentSafely(targetCell, symbol);
+                }
+            });
+            
+            // Use fixed animation duration for synchronization
+            const animationDuration = 1200 + 500; // 1.2s animation + 0.5s buffer
+            
+            // Second pass: Start ALL animations at exactly the same time
+            requestAnimationFrame(() => {
+                console.log(`🌟 Starting ${newSymbols.length} items dropping simultaneously across all columns`);
+                
+                // Start all animations at once, no column-based delays
+                newSymbols.forEach((newSymbol) => {
+                    this.startNewItemDropAnimation(newSymbol);
+                });
+                
+                // Resolve after all animations should be complete
+                setTimeout(() => {
+                    console.log('✅ Phase 2 complete: All new items dropped simultaneously');
+                    resolve();
+                }, animationDuration);
+            });
+        });
+    }
+    
+    // Animate a single existing item dropping from its current position to new position
+    animateExistingItemSettle(move, onComplete) {
+        const { symbol, fromRow, toRow, col } = move;
+        // Calculate drop distance from current position to target position
+        const dropDistance = (toRow - fromRow) * this.cellSize;
+        
+        // FIXED: Use uniform duration for all existing items to ensure synchronization
+        const uniformFallDuration = 0.8; // Fixed 0.8 seconds for all existing items
+        
+        // Get source and target cells
+        const fromCell = this.getCell(fromRow, col);
+        const targetCell = this.getCell(toRow, col);
+        
+        if (fromCell && targetCell && fromRow !== toRow) {
+            // Update grid state
+            this.grid.grid[toRow][col] = symbol;
+            
+            // Copy content AND all special effects from source to target
+            this.copyElementWithStyles(fromCell, targetCell, symbol);
+            
+            // Clear source cell after copying
+            fromCell.innerHTML = '';
+            fromCell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+            fromCell.classList.add('temp-empty');
+            // Remove all special classes from source
+            fromCell.classList.remove('special-symbol', 'wild-symbol', 'winning-flash');
+            
+            // Start target cell from the original position offset
+            targetCell.style.transform = `translateY(-${dropDistance}px)`;
+            targetCell.style.opacity = '1'; // Already visible since it was visible before
+            targetCell.style.transition = 'none';
+            
+            requestAnimationFrame(() => {
+                // Gentle falling animation for existing items (no rotation)
+                targetCell.style.transition = `transform ${uniformFallDuration}s cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+                targetCell.style.transform = 'translateY(0px)';
+                targetCell.style.opacity = '1';
+                
+                setTimeout(() => {
+                    // Subtle bounce for existing items
+                    this.addBounceEffect(targetCell, uniformFallDuration, false);
+                    
+                    // Clean up source cell
+                    if (fromCell && fromRow !== toRow) {
+                        fromCell.classList.remove('temp-empty');
+                        fromCell.style.backgroundColor = '';
+                    }
+                    
+                    if (onComplete) onComplete();
+                }, uniformFallDuration * 1000);
+            });
+        } else {
+            // No movement needed, just ensure grid state is correct
+            if (targetCell) {
+                this.grid.grid[toRow][col] = symbol;
+            }
+            if (onComplete) onComplete();
         }
     }
     
-    // Create dust particles on landing
-    createDustEffect(row, col) {
-        const cell = this.getCell(row, col);
+    // Start animation for new item (content already set)
+    startNewItemDropAnimation(newSymbol) {
+        const { symbol, row, col, dropDistance } = newSymbol;
+        const totalDistance = this.cellSize * (dropDistance + row + 1);
+        
+        // FIXED: Use a uniform fall duration for ALL symbols to ensure synchronization
+        const uniformFallDuration = 1.2; // Fixed 1.2 seconds for all symbols
+        
+        const targetCell = this.getCell(row, col);
+        if (targetCell) {
+            // Position element high above screen (invisible)
+            const rotationAngle = Math.random() * 720;
+            targetCell.style.transform = `translateY(-${totalDistance}px) rotate(${rotationAngle}deg)`;
+            targetCell.style.opacity = '0';
+            targetCell.style.transition = 'none';
+            
+            // Start the drop animation in next frame for perfect synchronization
+            requestAnimationFrame(() => {
+                targetCell.style.transition = `transform ${uniformFallDuration}s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s`;
+                targetCell.style.transform = 'translateY(0px) rotate(0deg)';
+                targetCell.style.opacity = '1';
+                
+                setTimeout(() => {
+                    this.addBounceEffect(targetCell, uniformFallDuration, true);
+                }, uniformFallDuration * 1000);
+            });
+        }
+    }
+    
+    // Animate a single new item dropping from above (DEPRECATED - use startNewItemDropAnimation)
+    animateNewItemDrop(newSymbol) {
+        const { symbol, row, col, dropDistance } = newSymbol;
+        const totalDistance = this.cellSize * (dropDistance + row + 1);
+        const fallDuration = Math.sqrt(totalDistance / 400) * 1.0; // Longer, more dramatic fall
+        
+        const targetCell = this.getCell(row, col);
+        if (targetCell) {
+            // Update grid state
+            this.grid.grid[row][col] = symbol;
+            
+            // Set content safely without sudden appearance
+            this.setCellContentSafely(targetCell, symbol);
+            
+            // Start from high above screen (completely invisible)
+            const rotationAngle = Math.random() * 720; // Up to 2 full rotations
+            targetCell.style.transform = `translateY(-${totalDistance}px) rotate(${rotationAngle}deg)`;
+            targetCell.style.opacity = '0'; // Start completely invisible
+            targetCell.style.transition = 'none';
+            
+            console.log(`🌟 New item at [${row},${col}] starting from ${totalDistance}px above`);
+            
+            requestAnimationFrame(() => {
+                // Dramatic falling animation with rotation
+                targetCell.style.transition = `transform ${fallDuration}s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s`;
+                targetCell.style.transform = 'translateY(0px) rotate(0deg)';
+                targetCell.style.opacity = '1';
+                
+                setTimeout(() => {
+                    // Enhanced bounce for new items
+                    this.addBounceEffect(targetCell, fallDuration, true);
+                }, fallDuration * 1000);
+            });
+        }
+    }
+    
+    // Animate a single item dropping from above (unified method - DEPRECATED)
+    animateItemDrop(item, index) {
+        const { type, symbol, targetRow, col, dropDistance, fromRow } = item;
+        const totalFallDistance = dropDistance;
+        const fallDuration = Math.sqrt(totalFallDistance / 400) * 0.9;
+        
+        // DEPRECATED METHOD - This method causes sudden appearance
+        console.warn('⚠️ Using deprecated animateItemDrop method - may cause sudden appearance');
+        
+        // Clear source cell if it's an existing symbol moving (but not if it's the same as target)
+        if (type === 'existing' && fromRow !== undefined && fromRow !== targetRow) {
+            const fromCell = this.getCell(fromRow, col);
+            if (fromCell) {
+                fromCell.innerHTML = '';
+                fromCell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                fromCell.classList.add('temp-empty');
+            }
+        }
+        
+        // No internal delay - timing controlled externally for row synchronization
+        const targetCell = this.getCell(targetRow, col);
+        if (targetCell) {
+            // Ensure grid state is updated first
+            this.grid.grid[targetRow][col] = symbol;
+            
+            // Set content safely without sudden appearance
+            this.setCellContentSafely(targetCell, symbol);
+            
+            // Double-check that content was set
+            if (!targetCell.innerHTML.trim()) {
+                console.warn(`⚠️ Empty cell detected at [${targetRow},${col}], forcing content update`);
+                targetCell.innerHTML = symbol.icon; // Fallback to emoji
+            }
+            
+            // Start from above the visible area (for ALL items) - invisible initially
+            targetCell.style.transform = `translateY(-${totalFallDistance}px)`;
+            if (type === 'new') {
+                // New symbols also get rotation
+                targetCell.style.transform += ` rotate(${Math.random() * 360}deg)`;
+            }
+            targetCell.style.opacity = '0';
+            targetCell.style.transition = 'none';
+            
+            // Animate falling down with physics
+            requestAnimationFrame(() => {
+                const easing = type === 'new' ? 
+                    'cubic-bezier(0.175, 0.885, 0.32, 1.275)' : // More dramatic for new
+                    'cubic-bezier(0.55, 0.055, 0.675, 0.19)';   // Standard gravity
+                    
+                targetCell.style.transition = `transform ${fallDuration}s ${easing}, opacity 0.3s`;
+                targetCell.style.transform = 'translateY(0px) rotate(0deg)';
+                targetCell.style.opacity = '1';
+                
+                // Add bounce landing effect
+                setTimeout(() => {
+                    this.addBounceEffect(targetCell, fallDuration, type === 'new');
+                    
+                    // Clean up source cell (only if it's different from target)
+                    if (type === 'existing' && fromRow !== undefined && fromRow !== targetRow) {
+                        const fromCell = this.getCell(fromRow, col);
+                        if (fromCell) {
+                            fromCell.classList.remove('temp-empty');
+                            fromCell.style.backgroundColor = '';
+                        }
+                    }
+                }, fallDuration * 1000);
+            });
+        }
+    }
+    
+    // Animate a single column's drops without overlapping (DEPRECATED - use animateItemDrop)
+    animateColumnDrop(col, movements) {
+        console.log(`⬇️ Animating column ${col} drops:`, movements.length);
+        
+        movements.forEach(({symbol, fromRow, toRow}, index) => {
+            const dropDistance = (toRow - fromRow) * this.cellSize;
+            const fallDuration = Math.sqrt(dropDistance / 400) * 0.8;
+            
+            // Clear original cell immediately and mark as empty
+            const fromCell = this.getCell(fromRow, col);
+            if (fromCell) {
+                fromCell.innerHTML = '';
+                fromCell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                fromCell.classList.add('temp-empty'); // Mark as temporarily empty
+            }
+            
+            // Add staggered animation with physics
+            setTimeout(() => {
+                const targetCell = this.getCell(toRow, col);
+                if (targetCell) {
+                    // Set initial position for the symbol in target cell
+                    // REMOVED: Direct updateCell call - content set via copyElementWithStyles
+                    targetCell.style.transform = `translateY(-${dropDistance}px)`;
+                    targetCell.style.transition = 'none';
+                    
+                    // Animate with realistic physics (gravity + bounce)
+                    requestAnimationFrame(() => {
+                        // Use physics-based easing curve for gravity effect
+                        targetCell.style.transition = `transform ${fallDuration}s cubic-bezier(0.55, 0.055, 0.675, 0.19)`;
+                        targetCell.style.transform = 'translateY(0px)';
+                        
+                        // Add bounce landing effect
+                        setTimeout(() => {
+                            this.addBounceEffect(targetCell, fallDuration);
+                            
+                            // Clear temp-empty class from original cell
+                            if (fromCell) {
+                                fromCell.classList.remove('temp-empty');
+                            }
+                        }, fallDuration * 1000);
+                    });
+                }
+            }, index * 50); // Stagger timing
+        });
+    }
+    
+    // DEPRECATED: Animate new symbols falling from above (use animateItemDrop instead)
+    animateNewSymbols(newSymbols) {
+        console.log(`⬇️ Animating ${newSymbols.length} new symbols`);
+        
+        newSymbols.forEach(({symbol, row, col, dropDistance}, index) => {
+            const totalDistance = this.cellSize * (dropDistance + row + 1);
+            const fallDuration = Math.sqrt(totalDistance / 400) * 0.9;
+            
+            // Stagger the drops with physics
+            setTimeout(() => {
+                const targetCell = this.getCell(row, col);
+                if (targetCell) {
+                    // Place symbol directly in target cell
+                    // REMOVED: Direct updateCell call - content set via setCellContentSafely
+                    
+                    // Start from above the visible area with spin
+                    targetCell.style.transform = `translateY(-${totalDistance}px) rotate(${Math.random() * 360}deg)`;
+                    targetCell.style.opacity = '0.9';
+                    targetCell.style.transition = 'none';
+                    
+                    // Animate falling down with physics
+                    requestAnimationFrame(() => {
+                        // Stronger gravity effect for new symbols
+                        targetCell.style.transition = `transform ${fallDuration}s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s`;
+                        targetCell.style.transform = 'translateY(0px) rotate(0deg)';
+                        targetCell.style.opacity = '1';
+                        
+                        // Add dramatic bounce landing
+                        setTimeout(() => {
+                            this.addBounceEffect(targetCell, fallDuration, true); // Enhanced bounce for new symbols
+                        }, fallDuration * 1000);
+                    });
+                }
+            }, index * 80); // Longer stagger for dramatic effect
+        });
+    }
+    
+    // Add realistic bounce effect after landing
+    addBounceEffect(cell, originalDuration, isNewSymbol = false) {
+        try {
+            if (!cell) return;
+            
+            // Calculate bounce intensity based on fall speed
+            const bounceIntensity = isNewSymbol ? 1.2 : 0.8;
+            const bounceHeight = this.cellSize * 0.15 * bounceIntensity; // 15% of cell height
+            
+            // Apply initial impact squash
+            cell.style.transition = 'transform 0.1s ease-out';
+            cell.style.transform = 'scaleY(0.85) scaleX(1.1)'; // Squash on impact
+            
+            setTimeout(() => {
+                // First bounce up
+                cell.style.transition = 'transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                cell.style.transform = `translateY(-${bounceHeight}px) scaleY(1.1) scaleX(0.95)`;
+                
+                setTimeout(() => {
+                    // Second small bounce
+                    cell.style.transition = 'transform 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                    cell.style.transform = `translateY(-${bounceHeight * 0.3}px) scaleY(1.05) scaleX(0.98)`;
+                    
+                    setTimeout(() => {
+                        // Final settle with subtle overshoot
+                        cell.style.transition = 'transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                        cell.style.transform = 'translateY(0px) scaleY(1.02) scaleX(0.99)';
+                        
+                        setTimeout(() => {
+                            // Complete rest
+                            cell.style.transition = 'transform 0.1s ease-out';
+                            cell.style.transform = '';
+                            
+                            // Clean up after all bounces
+                            setTimeout(() => {
+                                cell.style.transition = '';
+                            }, 100);
+                            
+                        }, 200);
+                    }, 150);
+                }, 200);
+            }, 100);
+            
+            // Add dust and sound effects
+            this.createDustEffect(cell);
+            
+            // Play impact sound
+            if (window.game && window.game.soundManager) {
+                window.game.soundManager.play('cascade');
+            }
+            
+        } catch (error) {
+            console.error('Error in addBounceEffect:', error);
+        }
+    }
+    
+    // Add landing impact effect to cells (deprecated - use addBounceEffect)
+    addLandingEffect(row, col) {
+        try {
+            const cell = this.getCell(row, col);
+            if (cell) {
+                this.addBounceEffect(cell, 0.5, false);
+            }
+        } catch (error) {
+            console.error('Error in addLandingEffect:', error);
+        }
+    }
+    
+    // Create dust particles on landing (supports both cell element and coordinates)
+    createDustEffect(cellOrRow, col = null) {
+        let cell;
+        
+        // Handle both cell element and row/col coordinates
+        if (typeof cellOrRow === 'object' && cellOrRow.nodeType) {
+            cell = cellOrRow; // It's already a cell element
+        } else {
+            cell = this.getCell(cellOrRow, col); // It's row/col coordinates
+        }
+        
         if (!cell) return;
         
-        const cellRect = cell.getBoundingClientRect();
-        const containerRect = this.gridElement.getBoundingClientRect();
-        
-        // Create 3 dust particles
-        for (let i = 0; i < 3; i++) {
-            const dust = document.createElement('div');
-            dust.className = 'dust-particle';
+        try {
+            const cellRect = cell.getBoundingClientRect();
+            const containerRect = this.gridElement.getBoundingClientRect();
             
-            // Random position around the bottom of the cell
-            const offsetX = (Math.random() - 0.5) * this.cellSize * 0.5;
-            const x = cellRect.left - containerRect.left + this.cellSize / 2 + offsetX;
-            const y = cellRect.bottom - containerRect.top - 10;
-            
-            dust.style.left = x + 'px';
-            dust.style.top = y + 'px';
-            dust.style.animationDelay = `${i * 0.05}s`;
-            
-            this.gridElement.appendChild(dust);
-            
-            // Remove after animation
-            setTimeout(() => dust.remove(), 500);
+            // Create 4 dust particles for more dramatic effect
+            for (let i = 0; i < 4; i++) {
+                const dust = document.createElement('div');
+                dust.className = 'dust-particle';
+                dust.style.cssText = `
+                    position: absolute;
+                    width: 4px;
+                    height: 4px;
+                    background: rgba(255, 255, 255, 0.6);
+                    border-radius: 50%;
+                    pointer-events: none;
+                    animation: dustFly 0.6s ease-out forwards;
+                `;
+                
+                // Random position around the bottom of the cell
+                const offsetX = (Math.random() - 0.5) * this.cellSize * 0.8;
+                const offsetY = (Math.random() - 0.5) * this.cellSize * 0.3;
+                const x = cellRect.left - containerRect.left + this.cellSize / 2 + offsetX;
+                const y = cellRect.bottom - containerRect.top - 5 + offsetY;
+                
+                dust.style.left = x + 'px';
+                dust.style.top = y + 'px';
+                dust.style.animationDelay = `${i * 0.03}s`;
+                
+                this.gridElement.appendChild(dust);
+                
+                // Remove after animation
+                setTimeout(() => {
+                    if (dust.parentNode) dust.remove();
+                }, 600);
+            }
+        } catch (error) {
+            console.error('Error creating dust effect:', error);
         }
     }
     
     // Helper to get cell element
     getCell(row, col) {
         return document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+    }
+    
+    // Copy element content and all visual effects from source to target
+    copyElementWithStyles(fromCell, targetCell, symbol) {
+        try {
+            // Copy all content including inner HTML
+            targetCell.innerHTML = fromCell.innerHTML;
+            
+            // Copy background styles
+            targetCell.style.backgroundColor = fromCell.style.backgroundColor;
+            targetCell.style.background = fromCell.style.background;
+            
+            // Copy all relevant CSS classes (special effects)
+            const importantClasses = ['special-symbol', 'wild-symbol', 'winning-flash', 'elimination-highlight'];
+            importantClasses.forEach(className => {
+                if (fromCell.classList.contains(className)) {
+                    targetCell.classList.add(className);
+                }
+            });
+            
+            // Copy any special styling attributes
+            if (fromCell.dataset.symbolId) {
+                targetCell.dataset.symbolId = fromCell.dataset.symbolId;
+            }
+            
+            // Copy any box-shadow, border effects
+            if (fromCell.style.boxShadow) {
+                targetCell.style.boxShadow = fromCell.style.boxShadow;
+            }
+            if (fromCell.style.border && fromCell.style.border !== 'none') {
+                targetCell.style.border = fromCell.style.border;
+            }
+            
+            console.log(`📋 Copied all effects from [${fromCell.dataset.row},${fromCell.dataset.col}] to [${targetCell.dataset.row},${targetCell.dataset.col}]`);
+            
+        } catch (error) {
+            console.warn('Error copying element styles, falling back to safe set:', error);
+            // Fallback to safe content setting
+            this.setCellContentSafely(targetCell, symbol);
+        }
+    }
+
+    // Safe method to set cell content without sudden appearance
+    setCellContentSafely(cell, symbol) {
+        try {
+            // Remove empty cell class since we're adding content
+            cell.classList.remove('empty-cell', 'elimination-empty');
+            
+            // Import the symbol display function dynamically
+            if (window.getSymbolDisplayWithLog) {
+                cell.innerHTML = window.getSymbolDisplayWithLog(symbol);
+            } else {
+                // Fallback to emoji if image system not available
+                cell.innerHTML = symbol.icon;
+            }
+            cell.style.backgroundColor = symbol.color + '33';
+            cell.style.opacity = '1'; // Ensure visible
+            
+            // Add special styling for special symbols
+            cell.classList.remove('special-symbol', 'wild-symbol');
+            if (symbol.id && symbol.id.includes('special')) {
+                cell.classList.add('special-symbol');
+            }
+            if (symbol.isWild) {
+                cell.classList.add('wild-symbol');
+            }
+        } catch (error) {
+            console.warn('Error setting cell content, using fallback:', error);
+            cell.innerHTML = symbol.icon; // Always fallback to emoji
+            cell.style.backgroundColor = symbol.color + '33';
+            cell.style.opacity = '1';
+        }
+    }
+    
+    // Force clear all yellow/gold effects (for debugging stuck elements)
+    clearAllYellowEffects() {
+        console.log('🧹 Force clearing all yellow/gold effects');
+        
+        // Remove all yellow effect classes
+        const affectedCells = this.gridElement.querySelectorAll('.winning-flash, .elimination-highlight, .special-symbol');
+        affectedCells.forEach(cell => {
+            cell.classList.remove('winning-flash', 'elimination-highlight');
+            
+            // Force stop any running animations
+            cell.style.animation = 'none';
+            
+            // Reset any yellow styling
+            if (cell.style.border && cell.style.border.includes('#FFD700')) {
+                cell.style.border = '';
+            }
+            if (cell.style.boxShadow && cell.style.boxShadow.includes('#FFD700')) {
+                cell.style.boxShadow = '';
+            }
+            
+            // Reset background if it contains gold colors
+            if (cell.style.backgroundColor && (cell.style.backgroundColor.includes('#FFD700') || cell.style.backgroundColor.includes('gold'))) {
+                cell.style.backgroundColor = '';
+            }
+        });
+        
+        // Remove all yellow effect elements (including pulse effects)
+        const yellowElements = this.gridElement.querySelectorAll('.win-pulse-border, .elimination-pulse, .empty-cell-dot');
+        yellowElements.forEach(el => {
+            if (el.parentNode) {
+                el.remove();
+            }
+        });
+        
+        // Clear any elements with inline yellow styles
+        const inlineYellowElements = this.gridElement.querySelectorAll('[style*="#FFD700"], [style*="gold"], [style*="yellow"]');
+        inlineYellowElements.forEach(el => {
+            // Force stop animations
+            el.style.animation = 'none';
+            
+            if (el.style.border && el.style.border.includes('#FFD700')) {
+                el.style.border = '';
+            }
+            if (el.style.boxShadow && el.style.boxShadow.includes('#FFD700')) {
+                el.style.boxShadow = '';
+            }
+            if (el.style.color && (el.style.color.includes('#FFD700') || el.style.color.includes('gold'))) {
+                el.style.color = '';
+            }
+            if (el.style.backgroundColor && (el.style.backgroundColor.includes('#FFD700') || el.style.backgroundColor.includes('gold'))) {
+                el.style.backgroundColor = '';
+            }
+        });
+        
+        // Force garbage collection by triggering a reflow
+        this.gridElement.offsetHeight;
+        
+        console.log('✅ All yellow/gold effects cleared');
     }
     
     // Update cell size on resize
@@ -220,17 +942,190 @@ export class GridAnimations {
         }
     }
     
-    // Clean up any orphaned animated elements
+    // Verify all cells have content and fix empty ones
+    verifyAllCellsHaveContent() {
+        console.log('🔍 Verifying all cells have content...');
+        let emptyCount = 0;
+        let fixedCount = 0;
+        
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                const cell = this.getCell(row, col);
+                const gridSymbol = this.grid.grid[row][col];
+                
+                if (cell && (!cell.innerHTML.trim() || cell.innerHTML.trim() === '')) {
+                    emptyCount++;
+                    
+                    if (gridSymbol) {
+                        // Fix empty cell with grid data
+                        console.warn(`🔧 Fixing empty cell [${row},${col}] with ${gridSymbol.name}`);
+                        this.setCellContentSafely(cell, gridSymbol);
+                        fixedCount++;
+                    } else {
+                        console.error(`❌ Cell [${row},${col}] is empty and has no grid data!`);
+                        // Force a random symbol as last resort
+                        const fallbackSymbol = { id: 'fallback', name: 'Fallback', icon: '❓', color: '#999999' };
+                        this.grid.grid[row][col] = fallbackSymbol;
+                        this.setCellContentSafely(cell, fallbackSymbol);
+                        fixedCount++;
+                    }
+                } else if (cell && !gridSymbol) {
+                    // Cell has content but grid doesn't - mark as empty for visual consistency
+                    console.warn(`🔧 Cell [${row},${col}] has content but grid is null, marking empty`);
+                    this.markCellAsEmpty(cell);
+                }
+            }
+        }
+        
+        if (emptyCount > 0) {
+            console.log(`🔧 Found ${emptyCount} empty cells, fixed ${fixedCount}`);
+        } else {
+            console.log('✅ All cells have content');
+        }
+    }
+    
+    // Mark a cell as empty (invisible)
+    markCellAsEmpty(cell) {
+        if (cell) {
+            cell.innerHTML = '';
+            cell.style.backgroundColor = 'transparent';
+            cell.style.border = 'none';
+            cell.style.opacity = '0';
+            cell.classList.remove('special-symbol', 'wild-symbol', 'winning-flash', 'elimination-empty');
+            cell.classList.add('empty-cell'); // This makes it invisible via CSS
+        }
+    }
+    
+    // Clean up any stuck animations and reset cell states
     cleanup() {
         try {
-            const orphanedElements = this.gridElement.querySelectorAll('.falling-symbol, .new-falling-symbol');
+            console.log('🧹 Cleaning up animation states');
+            
+            // Remove any remaining particle effects and stuck elements
+            const orphanedElements = this.gridElement.querySelectorAll('.cascade-particle, .cascade-effect, .win-pulse-border, .dust-particle, .elimination-pulse, .empty-cell-dot');
+            
+            // Also check for any elements with yellow/gold styling that might be stuck
+            const stuckYellowElements = this.gridElement.querySelectorAll('[style*="#FFD700"], [style*="gold"], [style*="yellow"]');
             orphanedElements.forEach(el => {
                 if (el.parentNode) {
                     el.remove();
                 }
             });
+            
+            // Clean up any stuck yellow/gold elements
+            stuckYellowElements.forEach(el => {
+                if (el && el.style) {
+                    // Remove yellow/gold styling
+                    el.style.border = '';
+                    el.style.boxShadow = '';
+                    el.style.backgroundColor = '';
+                    el.style.color = '';
+                    
+                    // If it's not a grid cell, remove it completely
+                    if (!el.classList.contains('grid-cell') && el.parentNode) {
+                        el.remove();
+                    }
+                }
+            });
+            
+            // Clear any stuck styles on grid cells
+            const allCells = this.gridElement.querySelectorAll('.grid-cell');
+            allCells.forEach(cell => {
+                // Reset animation styles
+                cell.style.transform = '';
+                cell.style.transition = '';
+                cell.style.opacity = '';
+                cell.style.zIndex = '';
+                cell.style.filter = '';
+                cell.style.animation = '';
+                cell.style.border = '';
+                cell.style.boxShadow = '';
+                
+                // Remove all animation classes
+                cell.classList.remove(
+                    'winning-flash', 'symbol-remove', 'winning', 
+                    'elimination-highlight', 'empty-cell', 'temp-empty'
+                );
+                
+                // Fix any broken images in cells
+                const brokenImages = cell.querySelectorAll('img[style*="display: none"]');
+                brokenImages.forEach(img => {
+                    if (img.nextSibling && img.nextSibling.style) {
+                        img.nextSibling.style.display = 'inline';
+                    }
+                });
+            });
+            
+            console.log(`🧹 Cleaned up ${orphanedElements.length} orphaned elements and reset all cell states`);
+            
+            // Force clear any stuck yellow effects
+            this.clearAllYellowEffects();
+            
+            // Final verification after cleanup
+            this.verifyAllCellsHaveContent();
         } catch (error) {
             console.error('Error during cleanup:', error);
         }
+    }
+    
+    // Safe timeout management to prevent animation leaks
+    setSafeTimeout(callback, delay, name = null) {
+        const timeoutId = this.timeoutCounter++;
+        const timeoutName = name || `timeout-${timeoutId}`;
+        
+        const timeout = setTimeout(() => {
+            try {
+                callback();
+            } catch (error) {
+                console.error(`Error in timeout ${timeoutName}:`, error);
+            } finally {
+                // Clean up from active timeouts
+                this.activeTimeouts.delete(timeoutId);
+            }
+        }, delay);
+        
+        // Store the timeout for potential cleanup
+        this.activeTimeouts.set(timeoutId, {
+            timeout,
+            name: timeoutName,
+            startTime: Date.now(),
+            delay
+        });
+        
+        return timeoutId;
+    }
+    
+    // Clear all active timeouts
+    clearAllTimeouts() {
+        console.log(`🧹 Clearing ${this.activeTimeouts.size} active timeouts`);
+        
+        this.activeTimeouts.forEach((timeoutInfo, id) => {
+            clearTimeout(timeoutInfo.timeout);
+            console.log(`❌ Cleared timeout: ${timeoutInfo.name}`);
+        });
+        
+        this.activeTimeouts.clear();
+        this.timeoutCounter = 0;
+    }
+    
+    // Enhanced cleanup with timeout management
+    forceCleanup() {
+        console.log('🚨 Force cleanup triggered');
+        
+        // Clear all managed timeouts first
+        this.clearAllTimeouts();
+        
+        // Clear animation state
+        this.isAnimating = false;
+        this.currentAnimationPhase = 'idle';
+        this.pendingAnimations.clear();
+        
+        // Run the standard cleanup
+        this.cleanup();
+        
+        // Force clear yellow effects
+        this.clearAllYellowEffects();
+        
+        console.log('✅ Force cleanup completed');
     }
 }

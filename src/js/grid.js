@@ -104,10 +104,9 @@ export class GameGrid {
             });
             
             // Check for wins after animation completes
-            setTimeout(() => {
-                // Apply special symbol effects
-                this.applySpecialSymbolEffects(specialSymbolPositions);
-                
+            setTimeout(async () => {
+                // Special symbol effects will be handled in game.js evaluateSpin()
+                // Just return the positions for reference
                 const clusters = this.findClusters();
                 resolve({ clusters, specialSymbolPositions });
             }, cells.length * 20 + 500);
@@ -115,43 +114,60 @@ export class GameGrid {
     }
     
     findClusters() {
-        const visited = Array(this.size).fill(null).map(() => Array(this.size).fill(false));
-        const clusters = [];
-        
-        for (let row = 0; row < this.size; row++) {
-            for (let col = 0; col < this.size; col++) {
-                if (!visited[row][col] && this.grid[row][col]) {
-                    const cluster = this.dfs(row, col, this.grid[row][col].id, visited);
-                    if (cluster.length >= 5) {
-                        clusters.push({
-                            symbol: this.grid[row][col],
-                            positions: cluster,
-                            size: cluster.length
-                        });
+        try {
+            const visited = Array(this.size).fill(null).map(() => Array(this.size).fill(false));
+            const clusters = [];
+            
+            for (let row = 0; row < this.size; row++) {
+                for (let col = 0; col < this.size; col++) {
+                    if (!visited[row][col] && this.grid[row] && this.grid[row][col]) {
+                        const cluster = this.dfs(row, col, this.grid[row][col].id, visited);
+                        if (cluster && cluster.length >= 5) {
+                            clusters.push({
+                                symbol: this.grid[row][col],
+                                positions: cluster,
+                                size: cluster.length
+                            });
+                        }
                     }
                 }
             }
+            
+            return clusters;
+        } catch (error) {
+            console.error('Error finding clusters:', error);
+            return [];
         }
-        
-        return clusters;
     }
     
     dfs(row, col, symbolId, visited) {
-        if (row < 0 || row >= this.size || col < 0 || col >= this.size ||
-            visited[row][col] || !this.grid[row][col] || this.grid[row][col].id !== symbolId) {
+        try {
+            if (row < 0 || row >= this.size || col < 0 || col >= this.size ||
+                !visited[row] || visited[row][col] || 
+                !this.grid[row] || !this.grid[row][col] || 
+                this.grid[row][col].id !== symbolId) {
+                return [];
+            }
+            
+            visited[row][col] = true;
+            const positions = [{row, col}];
+            
+            // Check all 4 directions
+            const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+            for (const [dr, dc] of directions) {
+                const newRow = row + dr;
+                const newCol = col + dc;
+                const result = this.dfs(newRow, newCol, symbolId, visited);
+                if (result && result.length > 0) {
+                    positions.push(...result);
+                }
+            }
+            
+            return positions;
+        } catch (error) {
+            console.error('Error in DFS:', error, {row, col, symbolId});
             return [];
         }
-        
-        visited[row][col] = true;
-        const positions = [{row, col}];
-        
-        // Check all 4 directions
-        const directions = [[0, 1], [1, 0], [0, -1], [-1, 0]];
-        for (const [dr, dc] of directions) {
-            positions.push(...this.dfs(row + dr, col + dc, symbolId, visited));
-        }
-        
-        return positions;
     }
     
     highlightWinningClusters(clusters) {
@@ -178,10 +194,10 @@ export class GameGrid {
                 this.animations.cleanup();
             }
             
-            // Animate removal
+            // PHASE 1: Animate removal of winning symbols
             await this.animations.animateRemoval(clusters);
             
-            // Update grid data
+            // PHASE 2: Update grid data and mark empty positions
             const columnsToFill = new Set();
             clusters.forEach(cluster => {
                 cluster.positions.forEach(({row, col}) => {
@@ -190,16 +206,31 @@ export class GameGrid {
                 });
             });
             
-            // Cascade columns
+            // PHASE 3: Calculate ALL column cascades simultaneously
+            const allMovements = [];
+            const allNewSymbols = [];
+            
             columnsToFill.forEach(col => {
-                this.cascadeColumn(col);
+                const { movements, newSymbols } = this.calculateColumnCascade(col);
+                allMovements.push(...movements);
+                allNewSymbols.push(...newSymbols);
             });
+            
+            // PHASE 4: Animate ALL cascades simultaneously
+            if (allMovements.length > 0 || allNewSymbols.length > 0) {
+                await this.animations.animateCascade(allMovements, allNewSymbols);
+            }
+            
+            console.log(`✅ Removed ${clusters.length} clusters and cascaded ${allMovements.length} movements + ${allNewSymbols.length} new symbols`);
+            
         } catch (error) {
             console.error('Error in removeWinningSymbols:', error);
         }
     }
     
-    cascadeColumn(col) {
+    
+    // Calculate cascade for a column and return movements/new symbols
+    calculateColumnCascade(col) {
         const movements = [];
         const newSymbols = [];
         
@@ -233,12 +264,11 @@ export class GameGrid {
             });
         }
         
-        // Use the new animation system
-        this.animations.animateCascade(movements, newSymbols);
+        return { movements, newSymbols };
     }
     
-    applySpecialSymbolEffects(specialSymbolPositions) {
-        specialSymbolPositions.forEach(({row, col, symbol}) => {
+    async applySpecialSymbolEffects(specialSymbolPositions) {
+        for (const {row, col, symbol} of specialSymbolPositions) {
             switch(symbol.id) {
                 case 'rush':
                     this.specialHandler.applyRushEffect({row, col});
@@ -247,10 +277,10 @@ export class GameGrid {
                     this.specialHandler.applySurgeEffect({row, col});
                     break;
                 case 'slash':
-                    this.specialHandler.applySlashEffect({row, col});
+                    await this.specialHandler.applySlashEffect({row, col});
                     break;
             }
-        });
+        }
     }
     
     // Modified cluster finding to handle wild symbols
@@ -282,7 +312,11 @@ export class GameGrid {
         for (let row = 0; row < this.size; row++) {
             for (let col = 0; col < this.size; col++) {
                 if (this.grid[row][col]) {
-                    this.updateCell(row, col, this.grid[row][col]);
+                    // Use safe content setting instead of direct updateCell
+                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    if (cell && this.animations) {
+                        this.animations.setCellContentSafely(cell, this.grid[row][col]);
+                    }
                 }
             }
         }
