@@ -126,6 +126,18 @@ export class CS2GridGame {
             const animationsActive = this.grid.animations && this.grid.animations.isAnimationActive();
             this.spinButton.disabled = this.isSpinning || this.balance < this.betAmount || animationsActive;
             
+            // Update button text based on current state
+            if (this.isSpinning || animationsActive) {
+                this.spinButton.textContent = 'ANIMATING...';
+                this.spinButton.style.animation = 'pulse 1s infinite';
+            } else if (this.freeSpinsRemaining > 0) {
+                this.spinButton.textContent = `FREE SPIN (${this.freeSpinsRemaining})`;
+                this.spinButton.style.animation = '';
+            } else {
+                this.spinButton.textContent = 'SPIN';
+                this.spinButton.style.animation = '';
+            }
+            
             // Update RTP display if exists
             this.updateRTPDisplay();
         } catch (error) {
@@ -151,6 +163,8 @@ export class CS2GridGame {
             this.lastSpinTime = Date.now(); // Track spin start time
             this.evaluationDepth = 0; // Reset recursion counter
             this.spinButton.disabled = true;
+            this.spinButton.textContent = 'ANIMATING...';
+            this.spinButton.style.animation = 'pulse 1s infinite';
             
             // Deduct bet from balance
             if (this.freeSpinsRemaining === 0) {
@@ -730,6 +744,12 @@ export class CS2GridGame {
             
             // Force clear any stuck yellow effects
             this.grid.animations.clearAllYellowEffects();
+            
+            // Reset button text to SPIN
+            if (this.spinButton) {
+                this.spinButton.textContent = 'SPIN';
+                this.spinButton.style.animation = '';
+            }
         }
         
         // Handle free spins

@@ -41,8 +41,8 @@ export class GridAnimations {
             this.isAnimating = false;
             console.log('🏁 All animations complete, enabling controls');
             
-            // Re-enable spin button
-            if (window.game && window.game.spinButton) {
+            // Only re-enable spin button if the spin is completely finished
+            if (window.game && window.game.spinButton && !window.game.isSpinning) {
                 window.game.spinButton.disabled = false;
                 window.game.spinButton.style.opacity = '1';
                 window.game.spinButton.style.cursor = 'pointer';
@@ -52,6 +52,11 @@ export class GridAnimations {
                 } else {
                     window.game.spinButton.textContent = 'SPIN';
                 }
+            } else if (window.game && window.game.spinButton && window.game.isSpinning) {
+                // Still spinning, keep showing ANIMATING...
+                window.game.spinButton.textContent = 'ANIMATING...';
+                window.game.spinButton.disabled = true;
+                window.game.spinButton.style.animation = 'pulse 1s infinite';
             }
         }
     }
