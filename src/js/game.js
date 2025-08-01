@@ -158,8 +158,9 @@ export class CS2GridGame {
                 this.updateUI();
             }
             
-            // Reset win amount
+            // Reset win amount for new spin
             this.winAmountElement.textContent = '0.00';
+            this.currentSpinWinAmount = 0;
             
             // Play spin sound
             this.soundManager.play('spin');
@@ -187,7 +188,10 @@ export class CS2GridGame {
     async evaluateSpin() {
         try {
             // Prevent infinite recursion with depth counter
-            if (!this.evaluationDepth) this.evaluationDepth = 0;
+            if (!this.evaluationDepth) {
+                this.evaluationDepth = 0;
+                this.currentSpinWinAmount = 0; // Initialize total win for this spin
+            }
             this.evaluationDepth++;
             
             if (this.evaluationDepth > 20) {
@@ -196,7 +200,7 @@ export class CS2GridGame {
                 return;
             }
             
-            console.log(`🔍 Starting evaluation cycle ${this.evaluationDepth}`);
+            console.log(`🔍 Starting evaluation cycle ${this.evaluationDepth} (Current spin win: $${this.currentSpinWinAmount.toFixed(2)})`);
             
             // STEP 1: Process all wins first (inner win loop)
             await this.processAllWins();
@@ -232,7 +236,7 @@ export class CS2GridGame {
             }
             
             // If we get here, no more wins or effects - end the spin
-            console.log('🏁 No more wins or effects, checking for scatters');
+            console.log(`🏁 No more wins or effects, final spin win: $${this.currentSpinWinAmount.toFixed(2)}`);
             const scattersTriggered = this.freeSpinsManager.checkForScatters();
             if (scattersTriggered) {
                 this.soundManager.play('scatter');
@@ -264,9 +268,9 @@ export class CS2GridGame {
             }
             
             console.log(`💎 Found ${clusters.length} winning clusters - processing`);
-            let totalWin = 0;
+            let cycleWin = 0;
             
-            // Calculate winnings
+            // Calculate winnings for this cycle
             clusters.forEach(cluster => {
                 try {
                     if (!cluster || !cluster.symbol || !cluster.symbol.paytable) {
@@ -278,7 +282,7 @@ export class CS2GridGame {
                     const clusterSize = Math.min(cluster.size, 15);
                     const basePayout = symbol.paytable[clusterSize] || symbol.paytable[15] || 0;
                     const adjustedPayout = rtpManager.calculateVolatilityPayout(basePayout, clusterSize);
-                    totalWin += adjustedPayout * this.betAmount;
+                    cycleWin += adjustedPayout * this.betAmount;
                 } catch (clusterError) {
                     console.error('Error processing cluster:', clusterError, cluster);
                 }
@@ -286,7 +290,7 @@ export class CS2GridGame {
             
             // Apply progressive multiplier in free spins
             if (this.freeSpinsRemaining > 0) {
-                totalWin *= this.progressiveMultiplier;
+                cycleWin *= this.progressiveMultiplier;
                 if (!this.isSuperFreeSpins) {
                     this.progressiveMultiplier++;
                 }
@@ -295,15 +299,18 @@ export class CS2GridGame {
             // Apply multiplier symbols if in free spins
             if (this.freeSpinsRemaining > 0) {
                 const symbolMultiplier = this.freeSpinsManager.calculateTotalMultiplier();
-                totalWin *= symbolMultiplier;
+                cycleWin *= symbolMultiplier;
             }
             
-            // Update balance and show win
-            this.balance += totalWin;
-            this.winAmountElement.textContent = totalWin.toFixed(2);
+            // Add to spin total and update balance
+            this.currentSpinWinAmount += cycleWin;
+            this.balance += cycleWin;
+            this.winAmountElement.textContent = this.currentSpinWinAmount.toFixed(2);
             
-            // Play win sound
-            this.soundManager.playWinSound(totalWin, this.betAmount);
+            console.log(`💰 Cycle win: $${cycleWin.toFixed(2)}, Total spin win: $${this.currentSpinWinAmount.toFixed(2)}`);
+            
+            // Play win sound (based on cycle win)
+            this.soundManager.playWinSound(cycleWin, this.betAmount);
             
             // Highlight and remove winning symbols
             this.grid.highlightWinningClusters(clusters);
@@ -749,9 +756,10 @@ export class CS2GridGame {
         this.bonusBoostActive = false;
         this.superBoostActive = false;
         
-        // Update RTP statistics
-        const winAmount = parseFloat(this.winAmountElement.textContent) || 0;
-        rtpManager.updateStats(this.betAmount, winAmount);
+        // Update RTP statistics with total spin win
+        const totalSpinWin = this.currentSpinWinAmount || 0;
+        rtpManager.updateStats(this.betAmount, totalSpinWin);
+        console.log(`📊 RTP Update: Bet $${this.betAmount.toFixed(2)}, Total Win $${totalSpinWin.toFixed(2)}`);
         
         this.updateUI();
     }
