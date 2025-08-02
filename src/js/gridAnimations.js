@@ -121,15 +121,42 @@ export class GridAnimations {
     
     // Phase 1: Highlight symbols that will be eliminated
     highlightForElimination(clusters) {
-        return new Promise(resolve => {
+        return new Promise(async resolve => {
             console.log('📍 Phase 1: Highlighting symbols for elimination');
             
-            clusters.forEach(cluster => {
+            // First, highlight each cluster sequentially
+            for (let i = 0; i < clusters.length; i++) {
+                const cluster = clusters[i];
+                console.log(`🎯 Highlighting cluster ${i + 1}/${clusters.length}`);
+                
+                // Highlight all positions in this cluster
                 cluster.positions.forEach(({row, col}) => {
                     const cell = this.getCell(row, col);
                     if (cell) {
                         // Clear previous states
                         cell.classList.remove('winning-flash');
+                        
+                        // Add sequential highlight effect
+                        cell.classList.add('cluster-highlight-sequential');
+                        cell.style.animationDelay = '0ms';
+                        cell.style.zIndex = '50';
+                    }
+                });
+                
+                // Wait for this cluster to be highlighted
+                await new Promise(r => setTimeout(r, 300));
+            }
+            
+            // Wait a bit then highlight all together
+            await new Promise(r => setTimeout(r, 200));
+            
+            // Now highlight all clusters together with elimination effect
+            clusters.forEach(cluster => {
+                cluster.positions.forEach(({row, col}) => {
+                    const cell = this.getCell(row, col);
+                    if (cell) {
+                        // Remove sequential highlight
+                        cell.classList.remove('cluster-highlight-sequential');
                         
                         // Add elimination highlight
                         cell.classList.add('elimination-highlight');
@@ -194,20 +221,13 @@ export class GridAnimations {
                     cluster.positions.forEach(({row, col}) => {
                         const cell = this.getCell(row, col);
                         if (cell) {
-                            // Clear symbol content but keep cell structure
-                            cell.innerHTML = '';
+                            // Clear the cell completely
+                            this.clearCell(cell);
                             
-                            // Show empty cell with transparent background
-                            cell.style.backgroundColor = 'transparent';
-                            cell.style.border = '1px solid transparent';
+                            // Reset any transform/filter effects
                             cell.style.filter = '';
                             cell.style.transform = '';
-                            cell.style.opacity = '1';
                             cell.style.zIndex = '';
-                            
-                            // Clear classes but mark as empty for cascade
-                            cell.classList.remove('elimination-highlight', 'symbol-remove', 'winning', 'special-symbol', 'wild-symbol');
-                            cell.classList.add('empty-cell');
                             
                             // Mark in grid data as empty
                             this.grid.grid[row][col] = null;
@@ -230,10 +250,9 @@ export class GridAnimations {
                 cluster.positions.forEach(({row, col}) => {
                     const cell = this.getCell(row, col);
                     if (cell) {
-                        // Simple empty cell display - just show the background
-                        cell.innerHTML = '';
+                        // Ensure cell is truly empty
+                        this.clearCell(cell);
                         cell.classList.remove('elimination-empty');
-                        cell.classList.add('empty-cell');
                         
                         // Update grid state to null for these positions
                         this.grid.grid[row][col] = null;
@@ -360,8 +379,8 @@ export class GridAnimations {
                 if (targetCell) {
                     // Update grid state
                     this.grid.grid[row][col] = symbol;
-                    // Set content immediately
-                    this.setCellContentSafely(targetCell, symbol);
+                    // Render the symbol immediately
+                    this.renderCell(targetCell, symbol);
                 }
             });
             
@@ -402,16 +421,10 @@ export class GridAnimations {
         if (fromCell && targetCell && fromRow !== toRow) {
             // Update grid state
             this.grid.grid[toRow][col] = symbol;
+            this.grid.grid[fromRow][col] = null; // Source is now empty
             
-            // Copy content AND all special effects from source to target
-            this.copyElementWithStyles(fromCell, targetCell, symbol);
-            
-            // Clear source cell after copying
-            fromCell.innerHTML = '';
-            fromCell.style.backgroundColor = 'transparent';
-            fromCell.classList.add('temp-empty');
-            // Remove all special classes from source
-            fromCell.classList.remove('special-symbol', 'wild-symbol', 'winning-flash');
+            // Move the symbol from source to target
+            this.moveCell(fromCell, targetCell, symbol);
             
             // Start target cell from the original position offset
             targetCell.style.transform = `translateY(-${dropDistance}px)`;
@@ -428,11 +441,7 @@ export class GridAnimations {
                     // Subtle bounce for existing items
                     this.addBounceEffect(targetCell, uniformFallDuration, false);
                     
-                    // Clean up source cell
-                    if (fromCell && fromRow !== toRow) {
-                        fromCell.classList.remove('temp-empty');
-                        fromCell.style.backgroundColor = '';
-                    }
+                    // Source cell cleanup is already done in moveCell
                     
                     if (onComplete) onComplete();
                 }, uniformFallDuration * 1000);
@@ -573,7 +582,8 @@ export class GridAnimations {
                         const fromCell = this.getCell(fromRow, col);
                         if (fromCell) {
                             fromCell.classList.remove('temp-empty');
-                            fromCell.style.backgroundColor = '';
+                            // Keep transparent background for empty cells
+                            fromCell.style.backgroundColor = 'transparent';
                         }
                     }
                 }, fallDuration * 1000);
@@ -790,77 +800,68 @@ export class GridAnimations {
         return document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
     }
     
-    // Copy element content and all visual effects from source to target
-    copyElementWithStyles(fromCell, targetCell, symbol) {
-        try {
-            // Copy all content including inner HTML
-            targetCell.innerHTML = fromCell.innerHTML;
-            
-            // Copy background styles
-            targetCell.style.backgroundColor = fromCell.style.backgroundColor;
-            targetCell.style.background = fromCell.style.background;
-            
-            // Copy all relevant CSS classes (special effects)
-            const importantClasses = ['special-symbol', 'wild-symbol', 'winning-flash', 'elimination-highlight'];
-            importantClasses.forEach(className => {
-                if (fromCell.classList.contains(className)) {
-                    targetCell.classList.add(className);
-                }
-            });
-            
-            // Copy any special styling attributes
-            if (fromCell.dataset.symbolId) {
-                targetCell.dataset.symbolId = fromCell.dataset.symbolId;
-            }
-            
-            // Copy any box-shadow, border effects
-            if (fromCell.style.boxShadow) {
-                targetCell.style.boxShadow = fromCell.style.boxShadow;
-            }
-            if (fromCell.style.border && fromCell.style.border !== 'none') {
-                targetCell.style.border = fromCell.style.border;
-            }
-            
-            console.log(`📋 Copied all effects from [${fromCell.dataset.row},${fromCell.dataset.col}] to [${targetCell.dataset.row},${targetCell.dataset.col}]`);
-            
-        } catch (error) {
-            console.warn('Error copying element styles, falling back to safe set:', error);
-            // Fallback to safe content setting
-            this.setCellContentSafely(targetCell, symbol);
-        }
+    // Move cell content from source to target (symbol moves as a unit)
+    moveCell(fromCell, targetCell, symbol) {
+        if (!fromCell || !targetCell) return;
+        
+        // Render the symbol in the target cell
+        this.renderCell(targetCell, symbol);
+        
+        // Clear the source cell (it's now empty)
+        this.clearCell(fromCell);
+        
+        console.log(`📋 Moved symbol from [${fromCell.dataset.row},${fromCell.dataset.col}] to [${targetCell.dataset.row},${targetCell.dataset.col}]`);
     }
 
-    // Safe method to set cell content without sudden appearance
-    setCellContentSafely(cell, symbol) {
-        try {
-            // Remove empty cell class and styles since we're adding content
-            cell.classList.remove('empty-cell', 'elimination-empty');
-            cell.style.border = ''; // Clear empty cell border
+    // Unified method to render a cell with symbol (symbol and background are one unit)
+    renderCell(cell, symbol) {
+        if (!cell) return;
+        
+        // If symbol exists, render it with its background
+        if (symbol && symbol.id) {
+            // Remove all empty states
+            cell.classList.remove('empty-cell', 'elimination-empty', 'temp-empty');
             
-            // Import the symbol display function dynamically
+            // Set content
             if (window.getSymbolDisplayWithLog) {
                 cell.innerHTML = window.getSymbolDisplayWithLog(symbol);
             } else {
-                // Fallback to emoji if image system not available
                 cell.innerHTML = symbol.icon;
             }
-            cell.style.backgroundColor = symbol.color + '33';
-            cell.style.opacity = '1'; // Ensure visible
             
-            // Add special styling for special symbols
+            // Set background - this is part of the symbol
+            cell.style.backgroundColor = symbol.color + '33';
+            cell.style.opacity = '1';
+            
+            // Handle special symbols
             cell.classList.remove('special-symbol', 'wild-symbol');
             if (symbol.id && symbol.id.includes('special')) {
                 cell.classList.add('special-symbol');
             }
-            if (symbol.isWild) {
+            if (symbol.isWild || symbol.id === 'wild') {
                 cell.classList.add('wild-symbol');
             }
-        } catch (error) {
-            console.warn('Error setting cell content, using fallback:', error);
-            cell.innerHTML = symbol.icon; // Always fallback to emoji
-            cell.style.backgroundColor = symbol.color + '33';
-            cell.style.opacity = '1';
+        } else {
+            // No symbol = truly empty cell
+            this.clearCell(cell);
         }
+    }
+    
+    // Clear a cell completely (make it empty)
+    clearCell(cell) {
+        if (!cell) return;
+        
+        cell.innerHTML = '';
+        cell.style.backgroundColor = 'transparent';
+        cell.style.border = '';
+        cell.style.opacity = '1';
+        cell.classList.remove('special-symbol', 'wild-symbol', 'winning-flash', 'elimination-highlight', 'cluster-highlight-sequential');
+        cell.classList.add('empty-cell');
+    }
+    
+    // Safe method to set cell content without sudden appearance
+    setCellContentSafely(cell, symbol) {
+        this.renderCell(cell, symbol);
     }
     
     // Force clear all yellow/gold effects (for debugging stuck elements)
@@ -992,15 +993,10 @@ export class GridAnimations {
         }
     }
     
-    // Mark a cell as empty (invisible)
+    // Mark a cell as empty
     markCellAsEmpty(cell) {
         if (cell) {
-            cell.innerHTML = '';
-            cell.style.backgroundColor = 'transparent';
-            cell.style.border = 'none';
-            cell.style.opacity = '0';
-            cell.classList.remove('special-symbol', 'wild-symbol', 'winning-flash', 'elimination-empty');
-            cell.classList.add('empty-cell'); // This makes it invisible via CSS
+            this.clearCell(cell);
         }
     }
     

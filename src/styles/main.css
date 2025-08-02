@@ -64,7 +64,7 @@ body {
 }
 
 .grid-cell {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -261,6 +261,26 @@ body {
     position: relative;
     z-index: 5;
     animation-fill-mode: forwards;
+}
+
+/* Sequential cluster highlight - shows each cluster one by one */
+.cluster-highlight-sequential {
+    animation: clusterSequentialHighlight 0.5s ease-in-out;
+    border: 3px solid #FFD700 !important;
+    box-shadow: 0 0 20px #FFD700;
+    position: relative;
+    z-index: 50;
+}
+
+@keyframes clusterSequentialHighlight {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 20px #FFD700;
+    }
+    50% {
+        transform: scale(1.15);
+        box-shadow: 0 0 30px #FFD700, inset 0 0 20px rgba(255, 215, 0, 0.3);
+    }
 }
 
 /* New elimination animation styles */
