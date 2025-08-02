@@ -64,7 +64,7 @@ body {
 }
 
 .grid-cell {
-    background: rgba(255, 255, 255, 0.1);
+    background: transparent;
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -130,7 +130,7 @@ body {
     transform: translateX(100%);
 }
 
-.grid-cell:hover {
+.grid-cell:hover:not(.empty-cell):not(.temp-empty) {
     transform: scale(1.05);
     background: rgba(255, 255, 255, 0.2);
 }
@@ -303,19 +303,19 @@ body {
     }
 }
 
-/* Empty cell styling - completely invisible for better visual effect */
+/* Empty cell styling - transparent to match grid background */
 .empty-cell {
     position: relative;
     background: transparent !important;
-    border: none !important;
-    opacity: 0 !important;
+    border: 1px solid transparent !important;
+    opacity: 1 !important;
 }
 
 /* Empty cell during elimination animation - visible with pulsing dot */
 .empty-cell.elimination-empty {
     opacity: 1 !important;
-    background: rgba(255, 255, 255, 0.1) !important;
-    border: 2px dashed rgba(255, 255, 255, 0.4) !important;
+    background: transparent !important;
+    border: 2px dashed rgba(255, 255, 255, 0.2) !important;
     border-radius: 8px;
 }
 
@@ -367,8 +367,8 @@ body {
 
 /* Temporary empty cell styling */
 .temp-empty {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    border: 1px dotted rgba(255, 255, 255, 0.3) !important;
+    background-color: transparent !important;
+    border: 1px solid transparent !important;
 }
 
 /* Dust particle animation for landing effects */

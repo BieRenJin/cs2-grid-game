@@ -5,7 +5,10 @@ export class GridAnimations {
     constructor(grid) {
         this.grid = grid;
         this.gridElement = document.getElementById('game-grid');
-        this.cellSize = this.gridElement.offsetWidth / this.grid.size;
+        // Initialize gap size
+        this.gridGap = 5; // Default gap
+        // Calculate cell size accounting for grid gaps and padding
+        this.updateCellSize();
         
         // Animation state management
         this.isAnimating = false;
@@ -191,16 +194,23 @@ export class GridAnimations {
                     cluster.positions.forEach(({row, col}) => {
                         const cell = this.getCell(row, col);
                         if (cell) {
-                            // Completely clear the cell
+                            // Clear symbol content but keep cell structure
                             cell.innerHTML = '';
-                            cell.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; // Very faint background
-                            cell.style.border = '1px dashed rgba(255, 255, 255, 0.2)'; // Show empty space
+                            
+                            // Show empty cell with transparent background
+                            cell.style.backgroundColor = 'transparent';
+                            cell.style.border = '1px solid transparent';
                             cell.style.filter = '';
                             cell.style.transform = '';
-                            cell.style.opacity = '1'; // Make the empty cell visible
+                            cell.style.opacity = '1';
                             cell.style.zIndex = '';
+                            
+                            // Clear classes but mark as empty for cascade
                             cell.classList.remove('elimination-highlight', 'symbol-remove', 'winning', 'special-symbol', 'wild-symbol');
-                            cell.classList.add('empty-cell'); // Mark as empty (invisible)
+                            cell.classList.add('empty-cell');
+                            
+                            // Mark in grid data as empty
+                            this.grid.grid[row][col] = null;
                         }
                     });
                 });
@@ -214,41 +224,16 @@ export class GridAnimations {
     // Phase 3: Show empty cells clearly before cascade starts
     showEmptyCells(clusters) {
         return new Promise(resolve => {
-            console.log('🕳️ Phase 3: Showing empty cells clearly');
+            console.log('🕳️ Phase 3: Showing empty cells with background color');
             
             clusters.forEach(cluster => {
                 cluster.positions.forEach(({row, col}) => {
                     const cell = this.getCell(row, col);
                     if (cell) {
-                        // Add temporary visibility for elimination animation
-                        cell.classList.add('elimination-empty');
-                        cell.style.backgroundColor = '';
-                        cell.style.border = '';
-                        cell.style.borderRadius = '';
-                        
-                        // Add a subtle pulsing dot in the center (with finite animation)
-                        const emptyDot = document.createElement('div');
-                        emptyDot.className = 'empty-cell-dot';
-                        emptyDot.style.cssText = `
-                            position: absolute;
-                            top: 50%;
-                            left: 50%;
-                            width: 12px;
-                            height: 12px;
-                            background: rgba(255, 255, 255, 0.5);
-                            border-radius: 50%;
-                            transform: translate(-50%, -50%);
-                            animation: emptyPulse 0.8s ease-in-out 3;
-                            animation-fill-mode: forwards;
-                        `;
-                        cell.appendChild(emptyDot);
-                        
-                        // Auto-remove the dot after animation completes
-                        setTimeout(() => {
-                            if (emptyDot.parentNode) {
-                                emptyDot.remove();
-                            }
-                        }, 2400); // 0.8s × 3 iterations = 2.4s
+                        // Simple empty cell display - just show the background
+                        cell.innerHTML = '';
+                        cell.classList.remove('elimination-empty');
+                        cell.classList.add('empty-cell');
                         
                         // Update grid state to null for these positions
                         this.grid.grid[row][col] = null;
@@ -256,11 +241,11 @@ export class GridAnimations {
                 });
             });
             
-            // Show empty state for 500ms so player can clearly see the gaps
+            // Brief pause to show empty cells, then start cascade
             setTimeout(() => {
-                console.log('✅ Phase 3 complete: Empty cells displayed');
+                console.log('✅ Phase 3 complete: Empty cells shown, ready for cascade');
                 resolve();
-            }, 500);
+            }, 200);
         });
     }
     
@@ -404,8 +389,8 @@ export class GridAnimations {
     // Animate a single existing item dropping from its current position to new position
     animateExistingItemSettle(move, onComplete) {
         const { symbol, fromRow, toRow, col } = move;
-        // Calculate drop distance from current position to target position
-        const dropDistance = (toRow - fromRow) * this.cellSize;
+        // Calculate drop distance from current position to target position, including gaps
+        const dropDistance = (toRow - fromRow) * (this.cellSize + this.gridGap);
         
         // FIXED: Use uniform duration for all existing items to ensure synchronization
         const uniformFallDuration = 0.8; // Fixed 0.8 seconds for all existing items
@@ -423,7 +408,7 @@ export class GridAnimations {
             
             // Clear source cell after copying
             fromCell.innerHTML = '';
-            fromCell.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+            fromCell.style.backgroundColor = 'transparent';
             fromCell.classList.add('temp-empty');
             // Remove all special classes from source
             fromCell.classList.remove('special-symbol', 'wild-symbol', 'winning-flash');
@@ -464,7 +449,7 @@ export class GridAnimations {
     // Start animation for new item (content already set)
     startNewItemDropAnimation(newSymbol) {
         const { symbol, row, col, dropDistance } = newSymbol;
-        const totalDistance = this.cellSize * (dropDistance + row + 1);
+        const totalDistance = (this.cellSize + this.gridGap) * (dropDistance + row + 1);
         
         // FIXED: Use a uniform fall duration for ALL symbols to ensure synchronization
         const uniformFallDuration = 1.2; // Fixed 1.2 seconds for all symbols
@@ -493,7 +478,7 @@ export class GridAnimations {
     // Animate a single new item dropping from above (DEPRECATED - use startNewItemDropAnimation)
     animateNewItemDrop(newSymbol) {
         const { symbol, row, col, dropDistance } = newSymbol;
-        const totalDistance = this.cellSize * (dropDistance + row + 1);
+        const totalDistance = (this.cellSize + this.gridGap) * (dropDistance + row + 1);
         const fallDuration = Math.sqrt(totalDistance / 400) * 1.0; // Longer, more dramatic fall
         
         const targetCell = this.getCell(row, col);
@@ -601,7 +586,7 @@ export class GridAnimations {
         console.log(`⬇️ Animating column ${col} drops:`, movements.length);
         
         movements.forEach(({symbol, fromRow, toRow}, index) => {
-            const dropDistance = (toRow - fromRow) * this.cellSize;
+            const dropDistance = (toRow - fromRow) * (this.cellSize + this.gridGap);
             const fallDuration = Math.sqrt(dropDistance / 400) * 0.8;
             
             // Clear original cell immediately and mark as empty
@@ -647,7 +632,7 @@ export class GridAnimations {
         console.log(`⬇️ Animating ${newSymbols.length} new symbols`);
         
         newSymbols.forEach(({symbol, row, col, dropDistance}, index) => {
-            const totalDistance = this.cellSize * (dropDistance + row + 1);
+            const totalDistance = (this.cellSize + this.gridGap) * (dropDistance + row + 1);
             const fallDuration = Math.sqrt(totalDistance / 400) * 0.9;
             
             // Stagger the drops with physics
@@ -848,8 +833,9 @@ export class GridAnimations {
     // Safe method to set cell content without sudden appearance
     setCellContentSafely(cell, symbol) {
         try {
-            // Remove empty cell class since we're adding content
+            // Remove empty cell class and styles since we're adding content
             cell.classList.remove('empty-cell', 'elimination-empty');
+            cell.style.border = ''; // Clear empty cell border
             
             // Import the symbol display function dynamically
             if (window.getSymbolDisplayWithLog) {
@@ -940,10 +926,27 @@ export class GridAnimations {
     // Update cell size on resize
     updateCellSize() {
         try {
-            this.cellSize = this.gridElement.offsetWidth / this.grid.size;
+            // Get the actual cell element to measure its computed size
+            const firstCell = this.gridElement.querySelector('.grid-cell');
+            if (firstCell) {
+                const cellRect = firstCell.getBoundingClientRect();
+                this.cellSize = cellRect.height; // Use actual cell height
+                
+                // Also calculate the gap size for more accurate positioning
+                const gridStyles = window.getComputedStyle(this.gridElement);
+                this.gridGap = parseFloat(gridStyles.gap) || 5; // Default 5px gap
+            } else {
+                // Fallback calculation if no cells exist yet
+                const gridWidth = this.gridElement.offsetWidth;
+                const gridPadding = 20; // 10px padding on each side
+                const totalGaps = (this.grid.size - 1) * 5; // 5px gap between cells
+                this.cellSize = (gridWidth - gridPadding - totalGaps) / this.grid.size;
+                this.gridGap = 5;
+            }
         } catch (error) {
             console.error('Error updating cell size:', error);
             this.cellSize = 50; // Fallback size
+            this.gridGap = 5;
         }
     }
     
