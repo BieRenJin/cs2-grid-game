@@ -64,19 +64,25 @@ body {
 }
 
 .grid-cell {
-    background: rgba(255, 255, 255, 0.05);
+    background: transparent;
     border-radius: 8px;
+    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 2rem;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
     aspect-ratio: 1;
     position: relative;
     overflow: hidden;
     transform-origin: center bottom;
     padding: 5px;
+}
+
+/* Add background only when cell has content */
+.grid-cell:not(.empty-cell):not(.temp-empty):not(.elimination-empty) {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .falling-symbol, .new-falling-symbol {
@@ -130,7 +136,7 @@ body {
     transform: translateX(100%);
 }
 
-.grid-cell:hover:not(.empty-cell):not(.temp-empty) {
+.grid-cell:hover:not(.empty-cell):not(.temp-empty):not(.elimination-empty) {
     transform: scale(1.05);
     background: rgba(255, 255, 255, 0.2);
 }

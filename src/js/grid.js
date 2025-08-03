@@ -309,31 +309,52 @@ export class GameGrid {
     }
     
     // Calculate cascade for a column and return movements/new symbols
+    // IMPORTANT: This method should NOT modify grid state - only calculate what needs to happen
     calculateColumnCascade(col) {
         const movements = [];
         const newSymbols = [];
         
-        // Track which symbols need to move
-        let writePos = this.size - 1;
+        console.log(`🔄 Calculating cascade for column ${col}...`);
+        
+        // Step 1: Collect all existing symbols from bottom to top
+        const existingSymbols = [];
         for (let row = this.size - 1; row >= 0; row--) {
             if (this.grid[row][col] !== null) {
-                if (row !== writePos) {
-                    movements.push({
-                        symbol: this.grid[row][col],
-                        fromRow: row,
-                        toRow: writePos,
-                        col: col
-                    });
-                    this.grid[writePos][col] = this.grid[row][col];
-                    this.grid[row][col] = null;
-                }
-                writePos--;
+                existingSymbols.push({
+                    symbol: this.grid[row][col],
+                    originalRow: row
+                });
             }
         }
         
-        // Fill empty spaces with new symbols
+        console.log(`📊 Column ${col}: Found ${existingSymbols.length} existing symbols to move`);
+        
+        // Step 2: Calculate movement for each existing symbol
+        let targetRow = this.size - 1; // Start from bottom
+        existingSymbols.forEach(({symbol, originalRow}) => {
+            movements.push({
+                symbol: symbol,
+                fromRow: originalRow,
+                toRow: targetRow,
+                col: col
+            });
+            
+            if (originalRow !== targetRow) {
+                console.log(`📍 Column ${col}: Symbol ${symbol.name} moves from row ${originalRow} to row ${targetRow}`);
+            } else {
+                console.log(`✅ Column ${col}: Symbol ${symbol.name} stays at row ${targetRow}`);
+            }
+            
+            targetRow--; // Move up for next symbol
+        });
+        
+        // Step 3: Calculate how many new symbols needed
+        const emptySpaces = targetRow + 1; // targetRow is now the highest position that needs filling
+        console.log(`✨ Column ${col}: Need ${emptySpaces} new symbols`);
+        
+        // Step 4: Generate new symbols for empty spaces
         const goldenSymbolExists = this.hasGoldenSymbol();
-        for (let row = writePos; row >= 0; row--) {
+        for (let row = 0; row < emptySpaces; row++) {
             let newSymbol;
             
             // Generate symbol with golden symbol restriction
@@ -348,21 +369,22 @@ export class GameGrid {
                     console.log('🚫 Golden symbol already exists on grid, using regular symbol for cascade');
                     newSymbol = getRandomSymbol();
                 } else if (isGoldenSymbol) {
-                    console.log(`✨ Golden symbol (${newSymbol.name}) added during cascade at [${row},${col}]`);
+                    console.log(`✨ Golden symbol (${newSymbol.name}) will be added during cascade at [${row},${col}]`);
                 }
             } else {
                 newSymbol = getRandomSymbol();
             }
             
-            this.grid[row][col] = newSymbol;
+            // DON'T modify grid here - let animation system handle it
             newSymbols.push({
                 symbol: newSymbol,
                 row: row,
                 col: col,
-                dropDistance: writePos + 1
+                dropDistance: emptySpaces // Distance from top of screen
             });
         }
         
+        console.log(`🎯 Column ${col} cascade calculation complete: ${movements.length} movements, ${newSymbols.length} new symbols`);
         return { movements, newSymbols };
     }
     
@@ -373,7 +395,7 @@ export class GameGrid {
                     this.specialHandler.applyRushEffect({row, col});
                     break;
                 case 'surge':
-                    this.specialHandler.applySurgeEffect({row, col});
+                    await this.specialHandler.applySurgeEffect({row, col});
                     break;
                 case 'slash':
                     await this.specialHandler.applySlashEffect({row, col});

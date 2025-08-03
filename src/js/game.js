@@ -81,6 +81,38 @@ export class CS2GridGame {
             });
         }
         
+        // Add Rush symbol test functionality
+        const testRushButton = document.getElementById('test-rush');
+        if (testRushButton) {
+            testRushButton.addEventListener('click', () => {
+                this.testRushEffect();
+            });
+        }
+        
+        // Add Surge symbol test functionality
+        const testSurgeButton = document.getElementById('test-surge');
+        if (testSurgeButton) {
+            testSurgeButton.addEventListener('click', () => {
+                this.testSurgeEffect();
+            });
+        }
+        
+        // Add Cascade animation test functionality
+        const testCascadeButton = document.getElementById('test-cascade');
+        if (testCascadeButton) {
+            testCascadeButton.addEventListener('click', () => {
+                this.testCascadeAnimations();
+            });
+        }
+        
+        // Add specific 2,4,6 test functionality
+        const test246Button = document.getElementById('test-246');
+        if (test246Button) {
+            test246Button.addEventListener('click', () => {
+                this.testSpecificCascadeProblem();
+            });
+        }
+        
         // Add RTP test functionality
         const rtpTestButton = document.getElementById('rtp-test');
         if (rtpTestButton) {
@@ -426,20 +458,16 @@ export class CS2GridGame {
             return false;
         }
         
-        console.log(`🌈 Found ${surgeSymbols.length} SURGE symbols - triggering SIMULTANEOUSLY`);
+        console.log(`🌈 Found ${surgeSymbols.length} SURGE symbols - triggering with animation`);
         await this.showSpecialSymbolsActivation(surgeSymbols);
         
-        const transformations = new Map();
-        surgeSymbols.forEach(({row, col}) => {
-            console.log(`🌈 Surge at [${row},${col}] transforming adjacent`);
-            const transforms = this.grid.specialHandler.getSurgeEffectTransformations({row, col});
-            transforms.forEach(({position, symbol}) => {
-                transformations.set(`${position.row},${position.col}`, symbol);
-            });
-        });
+        // Apply Surge effects one by one with animation
+        // (If multiple Surge symbols, they will animate sequentially)
+        for (const {row, col} of surgeSymbols) {
+            console.log(`🌈 Applying Surge effect at [${row},${col}] with random cycling animation`);
+            await this.grid.specialHandler.applySurgeEffect({row, col});
+        }
         
-        // Apply all Surge effects at once
-        await this.applySurgeEffects(transformations);
         return true;
     }
     
@@ -2033,5 +2061,377 @@ export class CS2GridGame {
     // Helper to check if symbol ID is special
     isSpecialSymbolId(id) {
         return ['rush', 'surge', 'slash', 'scatter', 'multiplier'].includes(id);
+    }
+    
+    // Test Surge effect to verify random animation
+    async testSurgeEffect() {
+        if (this.isSpinning) {
+            console.log('⚠️ Cannot test Surge effect - spin in progress');
+            return;
+        }
+        
+        console.log('🧪 Testing Surge effect - Random cycling animation');
+        
+        // Place a Surge symbol in the center of the grid
+        const centerRow = Math.floor(this.grid.size / 2);
+        const centerCol = Math.floor(this.grid.size / 2);
+        
+        // Place Surge symbol
+        this.grid.grid[centerRow][centerCol] = SPECIAL_SYMBOLS.SURGE;
+        this.grid.updateCell(centerRow, centerCol, SPECIAL_SYMBOLS.SURGE);
+        
+        // Wait a moment for visual feedback
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Apply Surge effect with animation
+        console.log(`🌈 Applying Surge effect at [${centerRow},${centerCol}]`);
+        await this.grid.specialHandler.applySurgeEffect({row: centerRow, col: centerCol});
+        
+        console.log('✅ Surge effect test complete');
+    }
+    
+    // Test Rush effect to verify non-adjacent Wild placement
+    testRushEffect() {
+        if (this.isSpinning) {
+            console.log('⚠️ Cannot test Rush effect - spin in progress');
+            return;
+        }
+        
+        console.log('🧪 Testing Rush effect - Non-adjacent Wild placement');
+        
+        if (!this.grid.specialHandler) {
+            alert('Special symbol handler not initialized');
+            return;
+        }
+        
+        // Test with different wild counts
+        const testCounts = [4, 6, 8, 11];
+        let allTestsPassed = true;
+        
+        testCounts.forEach(count => {
+            console.log(`\n🎯 Testing with ${count} wilds...`);
+            const result = this.grid.specialHandler.testNonAdjacentWilds(count);
+            
+            if (!result.success) {
+                allTestsPassed = false;
+            }
+            
+            console.log(`Result: ${result.actualCount}/${result.requestedCount} wilds placed, Success: ${result.success ? '✅' : '❌'}`);
+        });
+        
+        // Visual test - actually place wilds on the grid
+        console.log('\n🎨 Visual test - placing 8 non-adjacent wilds on current grid...');
+        const visualResult = this.grid.specialHandler.testNonAdjacentWilds(8);
+        
+        if (visualResult.success && visualResult.positions.length > 0) {
+            // Actually place the wilds on the grid for visual verification
+            visualResult.positions.forEach(({row, col}) => {
+                const wildSymbol = {
+                    id: 'wild',
+                    name: 'Wild',
+                    icon: '💠',
+                    color: '#FFD700',
+                    isWild: true
+                };
+                
+                this.grid.grid[row][col] = wildSymbol;
+                this.grid.updateCell(row, col, wildSymbol);
+            });
+            
+            alert(`Rush Effect Test Complete!\n\nAll tests passed: ${allTestsPassed ? 'YES' : 'NO'}\n\nVisual test: ${visualResult.actualCount} non-adjacent wilds placed on grid.\n\nCheck console for detailed logs.`);
+        } else {
+            alert(`Rush Effect Test Failed!\n\nCould not place non-adjacent wilds.\nActual: ${visualResult.actualCount}, Requested: 8\n\nCheck console for details.`);
+        }
+    }
+    
+    // Comprehensive cascade animation test - simulates all possible elimination scenarios
+    async testCascadeAnimations() {
+        if (this.isSpinning) {
+            console.log('⚠️ Cannot test cascade animations - spin in progress');
+            return;
+        }
+        
+        console.log('🎬 Starting comprehensive cascade animation test...');
+        
+        // Define test scenarios covering all possible elimination patterns
+        const testScenarios = [
+            {
+                name: "Single bottom elimination",
+                description: "One cell eliminated at bottom of column",
+                eliminations: [[6, 0]] // [row, col]
+            },
+            {
+                name: "Single top elimination", 
+                description: "One cell eliminated at top of column",
+                eliminations: [[0, 1]]
+            },
+            {
+                name: "Single middle elimination",
+                description: "One cell eliminated in middle of column",
+                eliminations: [[3, 2]]
+            },
+            {
+                name: "Multiple continuous elimination",
+                description: "Multiple adjacent cells eliminated",
+                eliminations: [[4, 3], [5, 3], [6, 3]]
+            },
+            {
+                name: "Multiple non-continuous elimination",
+                description: "Multiple non-adjacent cells eliminated (the problematic case)",
+                eliminations: [[1, 4], [3, 4], [5, 4]]
+            },
+            {
+                name: "Top and bottom elimination",
+                description: "Cells at both ends of column eliminated",
+                eliminations: [[0, 5], [6, 5]]
+            },
+            {
+                name: "Complex pattern",
+                description: "Complex mix of eliminations",
+                eliminations: [[1, 6], [2, 6], [4, 6], [6, 6]]
+            },
+            {
+                name: "Almost entire column",
+                description: "Most of column eliminated",
+                eliminations: [[0, 0], [1, 0], [2, 0], [4, 0], [5, 0], [6, 0]]
+            },
+            {
+                name: "Multi-column scenario",
+                description: "Multiple columns with different patterns",
+                eliminations: [
+                    [1, 1], [3, 1], [5, 1], // Column 1: non-continuous
+                    [4, 2], [5, 2], [6, 2], // Column 2: continuous bottom
+                    [0, 3], [6, 3]          // Column 3: top and bottom
+                ]
+            }
+        ];
+        
+        let testIndex = 0;
+        let passedTests = 0;
+        
+        for (const scenario of testScenarios) {
+            testIndex++;
+            console.log(`\n🎯 Test ${testIndex}/${testScenarios.length}: ${scenario.name}`);
+            console.log(`📝 ${scenario.description}`);
+            console.log(`🎪 Eliminations: ${scenario.eliminations.map(([r,c]) => `[${r},${c}]`).join(', ')}`);
+            
+            try {
+                // Create a fresh test grid
+                this.setupTestGrid();
+                
+                // Wait a bit for grid to stabilize
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Create fake clusters for the test eliminations
+                const testClusters = [{
+                    symbol: { name: 'Test Elimination', id: 'test-elimination' },
+                    positions: scenario.eliminations.map(([row, col]) => ({row, col})),
+                    size: scenario.eliminations.length
+                }];
+                
+                // Test the cascade animation
+                console.log(`🎬 Starting cascade animation for test ${testIndex}...`);
+                const testStartTime = Date.now();
+                
+                await this.grid.removeWinningSymbols(testClusters);
+                
+                const testDuration = Date.now() - testStartTime;
+                console.log(`⏱️ Test ${testIndex} completed in ${testDuration}ms`);
+                
+                // Verify grid state after cascade
+                const verificationResult = this.verifyGridAfterCascade(scenario.eliminations);
+                
+                if (verificationResult.success) {
+                    console.log(`✅ Test ${testIndex} PASSED: ${scenario.name}`);
+                    passedTests++;
+                } else {
+                    console.error(`❌ Test ${testIndex} FAILED: ${scenario.name}`);
+                    console.error(`❌ Issues found: ${verificationResult.issues.join(', ')}`);
+                }
+                
+                // Wait between tests to see animations clearly
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+            } catch (error) {
+                console.error(`💥 Test ${testIndex} ERROR: ${scenario.name}`, error);
+            }
+        }
+        
+        // Show final results
+        const allTestsPassed = passedTests === testScenarios.length;
+        const resultMessage = `Cascade Animation Test Complete!\n\nPassed: ${passedTests}/${testScenarios.length}\nSuccess Rate: ${((passedTests/testScenarios.length)*100).toFixed(1)}%\n\nStatus: ${allTestsPassed ? 'ALL TESTS PASSED ✅' : 'SOME TESTS FAILED ❌'}\n\nCheck console for detailed logs.`;
+        
+        console.log(`\n🏁 Final Results: ${passedTests}/${testScenarios.length} tests passed`);
+        alert(resultMessage);
+        
+        return {
+            totalTests: testScenarios.length,
+            passedTests: passedTests,
+            allPassed: allTestsPassed
+        };
+    }
+    
+    // Setup a controlled test grid with known symbols
+    setupTestGrid() {
+        console.log('🎭 Setting up test grid with known symbols...');
+        
+        // Fill grid with predictable symbols for testing
+        const testSymbols = [
+            SYMBOLS.FLASHBANG,  // Most common
+            SYMBOLS.SMOKE,      // Second most common
+            SYMBOLS.HE_GRENADE, // Third
+            SYMBOLS.KEVLAR      // Fourth
+        ];
+        
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                // Use modular pattern for predictability
+                const symbolIndex = (row + col) % testSymbols.length;
+                const symbol = testSymbols[symbolIndex];
+                
+                this.grid.grid[row][col] = symbol;
+                this.grid.updateCell(row, col, symbol);
+            }
+        }
+        
+        console.log('✅ Test grid setup complete');
+    }
+    
+    // Verify grid state after cascade to ensure no gaps or errors
+    verifyGridAfterCascade(originalEliminations) {
+        console.log('🔍 Verifying grid state after cascade...');
+        
+        const issues = [];
+        let success = true;
+        
+        // Check 1: No empty cells should exist (no nulls in grid)
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                if (this.grid.grid[row][col] === null) {
+                    issues.push(`Empty cell found at [${row},${col}]`);
+                    success = false;
+                }
+            }
+        }
+        
+        // Check 2: No gaps in columns (symbols should be at bottom)
+        for (let col = 0; col < this.grid.size; col++) {
+            let foundEmpty = false;
+            for (let row = this.grid.size - 1; row >= 0; row--) {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const hasContent = cell && cell.innerHTML.trim() !== '';
+                const hasGridData = this.grid.grid[row][col] !== null;
+                
+                if (!hasContent || !hasGridData) {
+                    foundEmpty = true;
+                } else if (foundEmpty) {
+                    issues.push(`Gap found in column ${col}: symbol at row ${row} with empty space below`);
+                    success = false;
+                    break;
+                }
+            }
+        }
+        
+        // Check 3: DOM and grid data consistency
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                const gridSymbol = this.grid.grid[row][col];
+                
+                if (!cell) {
+                    issues.push(`DOM cell missing at [${row},${col}]`);
+                    success = false;
+                    continue;
+                }
+                
+                const hasContent = cell.innerHTML.trim() !== '';
+                const hasGridData = gridSymbol !== null;
+                
+                if (hasContent !== hasGridData) {
+                    issues.push(`Mismatch at [${row},${col}]: DOM=${hasContent}, Grid=${hasGridData}`);
+                    success = false;
+                }
+                
+                // Check for question marks (error symbols)
+                if (cell.innerHTML.includes('❓')) {
+                    issues.push(`Question mark found at [${row},${col}] - error symbol detected`);
+                    success = false;
+                }
+            }
+        }
+        
+        if (success) {
+            console.log('✅ Grid verification passed - no issues found');
+        } else {
+            console.error(`❌ Grid verification failed - ${issues.length} issues found`);
+            issues.forEach(issue => console.error(`  - ${issue}`));
+        }
+        
+        return {
+            success: success,
+            issues: issues
+        };
+    }
+    
+    // Specific test for the [2,4,6] elimination problem
+    async testSpecificCascadeProblem() {
+        if (this.isSpinning) {
+            console.log('⚠️ Cannot test - spin in progress');
+            return;
+        }
+        
+        console.log('🎯 Testing specific problem: eliminate [2,4,6] in column 0');
+        
+        // Setup test grid
+        this.setupTestGrid();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Create test elimination for rows 2,4,6 in column 0
+        const problemEliminations = [[2, 0], [4, 0], [6, 0]];
+        
+        console.log('📋 Before elimination - Column 0 state:');
+        for (let row = 0; row < 7; row++) {
+            const cell = document.querySelector(`[data-row="${row}"][data-col="0"]`);
+            const symbol = this.grid.grid[row][0];
+            console.log(`  Row ${row}: ${symbol ? symbol.name : 'NULL'}, Cell has content: ${cell && cell.innerHTML.trim() !== ''}, BG: ${cell ? cell.style.backgroundColor : 'none'}`);
+        }
+        
+        // Create fake clusters for test
+        const testClusters = [{
+            symbol: { name: 'Test Problem', id: 'test-problem' },
+            positions: problemEliminations.map(([row, col]) => ({row, col})),
+            size: problemEliminations.length
+        }];
+        
+        console.log('🎬 Starting elimination and cascade...');
+        await this.grid.removeWinningSymbols(testClusters);
+        
+        // Wait for animations to complete
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        console.log('📋 After cascade - Column 0 state:');
+        let problemFound = false;
+        for (let row = 0; row < 7; row++) {
+            const cell = document.querySelector(`[data-row="${row}"][data-col="0"]`);
+            const symbol = this.grid.grid[row][0];
+            const hasContent = cell && cell.innerHTML.trim() !== '';
+            const bgColor = cell ? cell.style.backgroundColor : 'none';
+            
+            console.log(`  Row ${row}: ${symbol ? symbol.name : 'NULL'}, Cell has content: ${hasContent}, BG: ${bgColor}`);
+            
+            // Check for the specific problem: no content but has background
+            if (!hasContent && bgColor && bgColor !== 'transparent' && bgColor !== 'none' && bgColor !== '') {
+                console.error(`❌ PROBLEM FOUND at row ${row}: No content but has background: ${bgColor}`);
+                problemFound = true;
+            }
+        }
+        
+        if (problemFound) {
+            alert('❌ Problem reproduced! Found cells with background but no content.\nCheck console for details.');
+        } else {
+            alert('✅ No problem found. All cells correctly handled.');
+        }
+        
+        return !problemFound;
     }
 }

@@ -342,7 +342,66 @@ export class GridAnimations {
                 return;
             }
             
-            // Start all existing item animations simultaneously
+            // STEP 1: First, clear ALL source positions for ALL movements
+            // This ensures no leftover content/backgrounds remain
+            console.log('🧹 Clearing all source positions first...');
+            movements.forEach(move => {
+                const { fromRow, col } = move;
+                if (this.grid.grid[fromRow][col] !== null) { // Only if not already cleared
+                    this.grid.grid[fromRow][col] = null;
+                    const sourceCell = this.getCell(fromRow, col);
+                    if (sourceCell) {
+                        this.clearCell(sourceCell);
+                        console.log(`🗑️ Cleared source cell [${fromRow},${col}]`);
+                    }
+                }
+            });
+            
+            // STEP 1.5: Clear ALL positions that should be empty after movements
+            // Group movements by column to find empty positions
+            const columnMovements = new Map();
+            movements.forEach(move => {
+                if (!columnMovements.has(move.col)) {
+                    columnMovements.set(move.col, []);
+                }
+                columnMovements.get(move.col).push(move);
+            });
+            
+            columnMovements.forEach((colMoves, col) => {
+                const targetRows = new Set(colMoves.map(move => move.toRow));
+                // Clear all rows in this column that are NOT target positions
+                for (let row = 0; row < this.grid.size; row++) {
+                    if (!targetRows.has(row)) {
+                        // This position should be empty
+                        this.grid.grid[row][col] = null;
+                        const cell = this.getCell(row, col);
+                        if (cell) {
+                            this.clearCell(cell);
+                            console.log(`🧹 Clearing empty position [${row},${col}] after cascade`);
+                        }
+                    }
+                }
+            });
+            
+            // STEP 2: Apply all movements to grid state
+            console.log('📍 Applying all movements to grid state...');
+            movements.forEach(move => {
+                const { symbol, fromRow, toRow, col } = move;
+                this.grid.grid[toRow][col] = symbol;
+                console.log(`📋 Grid state: [${fromRow},${col}] -> [${toRow},${col}] (${symbol.name})`);
+            });
+            
+            // STEP 3: Update visual cells with correct content
+            console.log('🎨 Updating visual cells...');
+            movements.forEach(move => {
+                const { symbol, toRow, col } = move;
+                const targetCell = this.getCell(toRow, col);
+                if (targetCell) {
+                    this.renderCell(targetCell, symbol);
+                }
+            });
+            
+            // STEP 4: Start all animations simultaneously
             movements.forEach((move) => {
                 this.animateExistingItemSettle(move, () => {
                     completedItems++;
@@ -406,25 +465,28 @@ export class GridAnimations {
     }
     
     // Animate a single existing item dropping from its current position to new position
+    // NOTE: Grid state and visual updates are already done in animateExistingItemsSettling
     animateExistingItemSettle(move, onComplete) {
         const { symbol, fromRow, toRow, col } = move;
+        
+        // Skip if no movement needed
+        if (fromRow === toRow) {
+            console.log(`✅ No movement needed for [${fromRow},${col}] - already in correct position`);
+            if (onComplete) onComplete();
+            return;
+        }
+        
         // Calculate drop distance from current position to target position, including gaps
         const dropDistance = (toRow - fromRow) * (this.cellSize + this.gridGap);
         
         // FIXED: Use uniform duration for all existing items to ensure synchronization
         const uniformFallDuration = 0.8; // Fixed 0.8 seconds for all existing items
         
-        // Get source and target cells
-        const fromCell = this.getCell(fromRow, col);
+        // Get target cell (content is already there from previous step)
         const targetCell = this.getCell(toRow, col);
         
-        if (fromCell && targetCell && fromRow !== toRow) {
-            // Update grid state
-            this.grid.grid[toRow][col] = symbol;
-            this.grid.grid[fromRow][col] = null; // Source is now empty
-            
-            // Move the symbol from source to target
-            this.moveCell(fromCell, targetCell, symbol);
+        if (targetCell) {
+            console.log(`🎬 Animating movement: [${fromRow},${col}] -> [${toRow},${col}] (${symbol.name})`);
             
             // Start target cell from the original position offset
             targetCell.style.transform = `translateY(-${dropDistance}px)`;
@@ -441,16 +503,11 @@ export class GridAnimations {
                     // Subtle bounce for existing items
                     this.addBounceEffect(targetCell, uniformFallDuration, false);
                     
-                    // Source cell cleanup is already done in moveCell
-                    
                     if (onComplete) onComplete();
                 }, uniformFallDuration * 1000);
             });
         } else {
-            // No movement needed, just ensure grid state is correct
-            if (targetCell) {
-                this.grid.grid[toRow][col] = symbol;
-            }
+            console.error(`❌ Target cell not found for [${toRow},${col}]`);
             if (onComplete) onComplete();
         }
     }
@@ -833,6 +890,10 @@ export class GridAnimations {
             cell.style.backgroundColor = symbol.color + '33';
             cell.style.opacity = '1';
             
+            // Ensure no border appears during animation
+            cell.style.border = 'none';
+            cell.style.outline = 'none';
+            
             // Handle special symbols
             cell.classList.remove('special-symbol', 'wild-symbol');
             if (symbol.id && symbol.id.includes('special')) {
@@ -853,7 +914,8 @@ export class GridAnimations {
         
         cell.innerHTML = '';
         cell.style.backgroundColor = 'transparent';
-        cell.style.border = '';
+        cell.style.border = 'none';
+        cell.style.outline = 'none';
         cell.style.opacity = '1';
         cell.classList.remove('special-symbol', 'wild-symbol', 'winning-flash', 'elimination-highlight', 'cluster-highlight-sequential');
         cell.classList.add('empty-cell');

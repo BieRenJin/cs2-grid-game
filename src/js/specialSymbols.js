@@ -16,9 +16,10 @@ export class SpecialSymbolHandler {
     }
     
     // Rush Symbol - CT Badge: Adds 4-11 Wild symbols (weighted distribution)
+    // INCLUDING the Rush symbol itself
     applyRushEffect(position) {
         const wildCount = this.getWeightedWildCount(); // Weighted 4-11 wilds
-        const positions = this.getRandomPositions(wildCount);
+        const positions = this.getRandomPositionsIncludingRush(wildCount, position);
         
         positions.forEach(({row, col}) => {
             // Safety check for valid grid position
@@ -45,11 +46,12 @@ export class SpecialSymbolHandler {
             }
         });
         
+        console.log(`🎯 Rush effect: Transformed ${positions.length} positions to Wild (including Rush itself)`);
         return positions;
     }
     
-    // Surge Symbol - Rainbow Bomb: Transforms adjacent symbols
-    applySurgeEffect(position) {
+    // Surge Symbol - Rainbow Bomb: Transforms adjacent symbols with animation
+    async applySurgeEffect(position) {
         const {row, col} = position;
         const transformedPositions = [];
         
@@ -60,57 +62,126 @@ export class SpecialSymbolHandler {
         ];
         const targetSymbol = availableSymbols[Math.floor(Math.random() * availableSymbols.length)];
         
-        console.log(`🌈 Surge transforming all adjacent to: ${targetSymbol.name}`);
+        console.log(`🌈 Surge will transform all adjacent to: ${targetSymbol.name}`);
         
-        // Transform adjacent cells to the same symbol type (only regular symbols)
+        // Get all positions that will be transformed (including Surge itself)
         const adjacentPositions = this.getAdjacentPositions(row, col);
+        const positionsToTransform = [];
+        
+        // Check adjacent positions
         adjacentPositions.forEach(({row: r, col: c}) => {
-            // Check if grid position exists and has a symbol
             if (this.grid.grid[r] && this.grid.grid[r][c]) {
                 const currentSymbol = this.grid.grid[r][c];
-                
-                // Only transform regular symbols, skip special symbols
                 if (!this.isSpecialSymbol(currentSymbol)) {
-                    console.log(`🔄 Surge transforming ${currentSymbol.name} at [${r},${c}] to ${targetSymbol.name}`);
-                    this.grid.grid[r][c] = targetSymbol;
-                    // Use safe content setting instead of direct updateCell
-                    const targetCell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
-                    if (targetCell && this.grid.animations) {
-                        this.grid.animations.setCellContentSafely(targetCell, targetSymbol);
-                    }
-                    transformedPositions.push({row: r, col: c});
-                    
-                    // Add rainbow animation
-                    const cell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
-                    if (cell) {
-                        cell.style.background = `linear-gradient(45deg, 
-                            #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff)`;
-                        setTimeout(() => {
-                            cell.style.background = targetSymbol.color + '33';
-                        }, 1000);
-                    }
-                } else {
-                    console.log(`🚫 Surge skips special symbol ${currentSymbol.name} at [${r},${c}]`);
+                    positionsToTransform.push({row: r, col: c});
                 }
             }
         });
         
-        // FIXED: Transform the Surge symbol itself to the target symbol
-        console.log(`🌈 Surge symbol at [${row},${col}] also transforms to: ${targetSymbol.name}`);
-        this.grid.grid[row][col] = targetSymbol;
-        const surgeCell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-        if (surgeCell && this.grid.animations) {
-            this.grid.animations.setCellContentSafely(surgeCell, targetSymbol);
-            // Add rainbow fade effect to the surge cell too
-            surgeCell.style.background = `linear-gradient(45deg, 
-                #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff)`;
-            setTimeout(() => {
-                surgeCell.style.background = targetSymbol.color + '33';
-            }, 1000);
-        }
-        transformedPositions.push({row, col}); // Include Surge position itself
+        // Add Surge position itself
+        positionsToTransform.push({row, col});
+        
+        console.log(`🎭 Starting random symbol animation for ${positionsToTransform.length} positions...`);
+        
+        // Phase 1: Random symbol cycling animation (2 seconds)
+        await this.animateRandomSymbolCycling(positionsToTransform, targetSymbol);
+        
+        // Phase 2: Apply final transformations with rainbow background
+        console.log(`🌈 Applying final transformations to: ${targetSymbol.name}`);
+        
+        positionsToTransform.forEach(({row: r, col: c}) => {
+            // Update grid state
+            this.grid.grid[r][c] = targetSymbol;
+            
+            // Update visual
+            const cell = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+            if (cell && this.grid.animations) {
+                this.grid.animations.setCellContentSafely(cell, targetSymbol);
+                
+                // Add rainbow background effect
+                cell.style.background = `linear-gradient(45deg, 
+                    #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff)`;
+                setTimeout(() => {
+                    cell.style.background = targetSymbol.color + '33';
+                }, 1000);
+            }
+            
+            transformedPositions.push({row: r, col: c});
+        });
         
         return transformedPositions;
+    }
+    
+    // Animate random symbol cycling before final transformation
+    async animateRandomSymbolCycling(positions, finalSymbol) {
+        const availableSymbols = [
+            SYMBOLS.FLASHBANG, SYMBOLS.SMOKE, SYMBOLS.HE_GRENADE, SYMBOLS.KEVLAR,
+            SYMBOLS.DEFUSE_KIT, SYMBOLS.DEAGLE, SYMBOLS.AK47, SYMBOLS.AWP
+        ];
+        
+        return new Promise((resolve) => {
+            const animationDuration = 2000; // 2 seconds of cycling
+            const cycleInterval = 150; // Change symbol every 150ms
+            const totalCycles = Math.floor(animationDuration / cycleInterval);
+            
+            console.log(`🎲 Starting ${totalCycles} cycles of random symbol changes...`);
+            
+            // Track animation state for each position
+            const animationStates = positions.map(pos => ({
+                position: pos,
+                cycleCount: 0,
+                intervalId: null
+            }));
+            
+            // Start cycling animation for each position
+            animationStates.forEach((state, index) => {
+                state.intervalId = setInterval(() => {
+                    const {row, col} = state.position;
+                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    
+                    if (cell) {
+                        // Pick a random symbol (excluding the final symbol to create suspense)
+                        const cyclingSymbols = availableSymbols.filter(s => s.id !== finalSymbol.id);
+                        const randomSymbol = cyclingSymbols[Math.floor(Math.random() * cyclingSymbols.length)];
+                        
+                        // Update visual only (not grid state yet)
+                        cell.innerHTML = randomSymbol.icon;
+                        cell.style.backgroundColor = randomSymbol.color + '33';
+                        
+                        // Add pulsing effect during cycling
+                        cell.style.transform = 'scale(1.1)';
+                        setTimeout(() => {
+                            if (cell.style.transform === 'scale(1.1)') {
+                                cell.style.transform = 'scale(1)';
+                            }
+                        }, 75);
+                        
+                        state.cycleCount++;
+                        
+                        // Stop this position's animation when cycles complete
+                        if (state.cycleCount >= totalCycles) {
+                            clearInterval(state.intervalId);
+                            
+                            // Check if all positions finished cycling
+                            if (animationStates.every(s => s.cycleCount >= totalCycles)) {
+                                console.log(`✅ Random cycling animation complete for all ${positions.length} positions`);
+                                resolve();
+                            }
+                        }
+                    }
+                }, cycleInterval);
+            });
+            
+            // Failsafe: resolve after animation duration even if something goes wrong
+            setTimeout(() => {
+                animationStates.forEach(state => {
+                    if (state.intervalId) {
+                        clearInterval(state.intervalId);
+                    }
+                });
+                resolve();
+            }, animationDuration + 500);
+        });
     }
     
     // Slash Symbol - Karambit: Removes horizontal and vertical lines
@@ -188,10 +259,12 @@ export class SpecialSymbolHandler {
     }
     
     // Get random positions for Wild symbols (only regular symbols, not special symbols)
+    // Ensures Wild symbols are not adjacent to each other
     getRandomPositions(count) {
-        const positions = [];
+        const selectedPositions = [];
         const validPositions = [];
         
+        // First, collect all valid positions
         for (let row = 0; row < this.grid.size; row++) {
             for (let col = 0; col < this.grid.size; col++) {
                 const currentSymbol = this.grid.grid[row][col];
@@ -205,15 +278,107 @@ export class SpecialSymbolHandler {
         
         console.log(`🎯 Found ${validPositions.length} valid positions for Wild placement (excluding special symbols)`);
         
-        // Shuffle and take first 'count' positions
+        // Shuffle valid positions for random selection
         const shuffled = validPositions.sort(() => Math.random() - 0.5);
-        return shuffled.slice(0, Math.min(count, shuffled.length));
+        
+        // Select positions ensuring no adjacency
+        for (const position of shuffled) {
+            if (selectedPositions.length >= count) break;
+            
+            // Check if this position is adjacent to any already selected position
+            const isAdjacent = selectedPositions.some(selected => 
+                this.arePositionsAdjacent(position, selected)
+            );
+            
+            if (!isAdjacent) {
+                selectedPositions.push(position);
+                console.log(`✅ Selected Wild position [${position.row},${position.col}] (${selectedPositions.length}/${count})`);
+            } else {
+                console.log(`🚫 Skipped position [${position.row},${position.col}] - too close to existing Wild (distance <= √2)`);
+            }
+        }
+        
+        console.log(`💠 Generated ${selectedPositions.length} non-adjacent Wild positions out of ${count} requested`);
+        return selectedPositions;
+    }
+    
+    // Get random positions for Wild symbols INCLUDING the Rush symbol position
+    // Ensures Wild symbols (including Rush) have minimum distance > sqrt(2)
+    getRandomPositionsIncludingRush(count, rushPosition) {
+        const selectedPositions = [];
+        const validPositions = [];
+        
+        // First, add the Rush position itself as the first selected position
+        selectedPositions.push(rushPosition);
+        console.log(`🎯 Rush symbol at [${rushPosition.row},${rushPosition.col}] will become Wild (1/${count})`);
+        
+        // Collect all other valid positions (excluding special symbols)
+        for (let row = 0; row < this.grid.size; row++) {
+            for (let col = 0; col < this.grid.size; col++) {
+                // Skip the Rush position itself
+                if (row === rushPosition.row && col === rushPosition.col) {
+                    continue;
+                }
+                
+                const currentSymbol = this.grid.grid[row][col];
+                
+                // Only include positions with regular symbols (not special symbols)
+                if (currentSymbol && !this.isSpecialSymbol(currentSymbol)) {
+                    validPositions.push({row, col});
+                }
+            }
+        }
+        
+        console.log(`🎯 Found ${validPositions.length} additional valid positions for Wild placement`);
+        
+        // Shuffle valid positions for random selection
+        const shuffled = validPositions.sort(() => Math.random() - 0.5);
+        
+        // Select additional positions ensuring minimum distance > sqrt(2)
+        for (const position of shuffled) {
+            if (selectedPositions.length >= count) break;
+            
+            // Check if this position is too close to any already selected position
+            const isTooClose = selectedPositions.some(selected => 
+                this.arePositionsAdjacent(position, selected)
+            );
+            
+            if (!isTooClose) {
+                selectedPositions.push(position);
+                console.log(`✅ Selected Wild position [${position.row},${position.col}] (${selectedPositions.length}/${count})`);
+            } else {
+                console.log(`🚫 Skipped position [${position.row},${position.col}] - too close to existing Wild (distance <= √2)`);
+            }
+        }
+        
+        console.log(`💠 Rush effect: Generated ${selectedPositions.length} non-adjacent Wild positions (including Rush itself) out of ${count} requested`);
+        return selectedPositions;
     }
     
     // Helper method to check if a symbol is a special symbol
     isSpecialSymbol(symbol) {
         const specialIds = ['rush', 'surge', 'slash', 'scatter', 'multiplier'];
         return specialIds.includes(symbol.id);
+    }
+    
+    // Check if two positions are too close (distance must be > sqrt(2))
+    arePositionsAdjacent(pos1, pos2) {
+        const rowDiff = Math.abs(pos1.row - pos2.row);
+        const colDiff = Math.abs(pos1.col - pos2.col);
+        
+        // Calculate Euclidean distance
+        const distance = Math.sqrt(rowDiff * rowDiff + colDiff * colDiff);
+        
+        // Return true if distance is <= sqrt(2) (too close)
+        // This ensures minimum distance > sqrt(2) between any two Wild symbols
+        const minDistance = Math.sqrt(2);
+        const tooClose = distance <= minDistance;
+        
+        if (tooClose) {
+            console.log(`📏 Distance check: [${pos1.row},${pos1.col}] to [${pos2.row},${pos2.col}] = ${distance.toFixed(2)} <= ${minDistance.toFixed(2)} (too close)`);
+        }
+        
+        return tooClose;
     }
     
     // Alias for backward compatibility
@@ -366,8 +531,8 @@ export class SpecialSymbolHandler {
     
     // Get positions where Rush effect will add wilds (without applying)
     getRushEffectPositions(position) {
-        const wildCount = Math.floor(Math.random() * 8) + 4; // 4-11 wilds
-        return this.getRandomPositions(wildCount);
+        const wildCount = this.getWeightedWildCount(); // Use weighted distribution
+        return this.getRandomPositionsIncludingRush(wildCount, position);
     }
     
     // Get transformations that Surge effect will cause (without applying)
@@ -419,7 +584,7 @@ export class SpecialSymbolHandler {
             symbol: targetSymbol
         });
         
-        console.log(`🎯 Surge will transform ${transformations.length} positions (including itself) to ${targetSymbol.name}`);
+        console.log(`🎯 Surge will transform ${transformations.length} positions (including itself) to ${targetSymbol.name} (with animation)`);
         return transformations;
     }
     
@@ -476,6 +641,50 @@ export class SpecialSymbolHandler {
             slashCount: 0
         };
         console.log('📊 Special symbol statistics reset');
+    }
+    
+    // Test method to verify Wild symbols have minimum distance > sqrt(2)
+    testNonAdjacentWilds(count = 8) {
+        console.log(`🧪 Testing Wild generation with minimum distance > √2 (${count} wilds)...`);
+        
+        const positions = this.getRandomPositions(count);
+        
+        // Check if any two positions are too close (distance <= sqrt(2))
+        let tooCloseFound = false;
+        const minDistance = Math.sqrt(2);
+        
+        for (let i = 0; i < positions.length; i++) {
+            for (let j = i + 1; j < positions.length; j++) {
+                const pos1 = positions[i];
+                const pos2 = positions[j];
+                const distance = Math.sqrt(
+                    Math.pow(pos1.row - pos2.row, 2) + 
+                    Math.pow(pos1.col - pos2.col, 2)
+                );
+                
+                if (distance <= minDistance) {
+                    console.error(`❌ Wilds too close: [${pos1.row},${pos1.col}] and [${pos2.row},${pos2.col}] (distance: ${distance.toFixed(2)} <= ${minDistance.toFixed(2)})`);
+                    tooCloseFound = true;
+                } else {
+                    console.log(`✅ Distance OK: [${pos1.row},${pos1.col}] to [${pos2.row},${pos2.col}] = ${distance.toFixed(2)} > ${minDistance.toFixed(2)}`);
+                }
+            }
+        }
+        
+        if (!tooCloseFound) {
+            console.log(`✅ Test passed: All ${positions.length} wilds have minimum distance > √2`);
+            positions.forEach((pos, index) => {
+                console.log(`  ${index + 1}. Wild at [${pos.row},${pos.col}]`);
+            });
+        }
+        
+        return {
+            success: !tooCloseFound,
+            positions: positions,
+            requestedCount: count,
+            actualCount: positions.length,
+            minimumDistance: minDistance
+        };
     }
 
     // Get weighted wild count for Rush effect (4 most likely, 11 least likely)

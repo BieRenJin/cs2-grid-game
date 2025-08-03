@@ -39,6 +39,10 @@
             <button id="toggle-paytable">Paytable</button>
             <button id="auto-test" style="margin-left: 10px; background: #007bff; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">Auto Test (5 Spins)</button>
             <button id="test-wild" style="margin-left: 10px; background: #28a745; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">Test Wild</button>
+            <button id="test-rush" style="margin-left: 10px; background: #fd7e14; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">Test Rush</button>
+            <button id="test-surge" style="margin-left: 10px; background: #e91e63; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">Test Surge</button>
+            <button id="test-cascade" style="margin-left: 10px; background: #6f42c1; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">Test Cascade</button>
+            <button id="test-246" style="margin-left: 10px; background: #e83e8c; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">Test 2,4,6</button>
             <button id="rtp-test" style="margin-left: 10px; background: #dc3545; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer;">RTP Test (1M spins)</button>
             <small style="display: block; margin-top: 10px; color: #888; text-align: center;">
                 Press Ctrl+R for RTP Statistics | Ctrl+S for Special Symbol Stats
@@ -165,13 +169,7 @@
             performClick();
         };
         
-        // Start auto-test on page load for immediate testing
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                console.log('🚀 Starting automatic spin test...');
-                window.autoClickSpinTest(3);
-            }, 3000);
-        });
+        // Auto-test disabled - user can manually trigger tests
         
         // Add status indicator
         document.addEventListener('DOMContentLoaded', () => {
