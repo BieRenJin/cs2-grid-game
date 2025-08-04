@@ -8,10 +8,6 @@
 
 # testing
 /coverage
-/test-results/
-/playwright-report/
-/playwright/.cache/
-rtp-test-results.json
 
 # next.js
 /.next/
@@ -19,6 +15,7 @@ rtp-test-results.json
 
 # production
 /build
+/dist/
 
 # misc
 .DS_Store
@@ -40,9 +37,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# supabase
-supabase/.branches
-supabase/.temp
+# Supabase
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# Testing
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
 
 # IDE
 .idea/
@@ -53,3 +58,8 @@ supabase/.temp
 
 # OS
 Thumbs.db
+
+# Package managers
+pnpm-lock.yaml
+package-lock.json
+*.log
