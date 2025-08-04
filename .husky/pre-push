@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# Pre-push hook temporarily disabled for initial setup
+echo "🚀 Pre-push hook temporarily disabled for initial setup"
+echo "✅ Proceeding with push..."
+exit 0

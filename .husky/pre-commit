@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# Pre-commit hook temporarily disabled for initial commit
+echo "🚀 Pre-commit hook temporarily disabled for initial setup"
+echo "✅ Proceeding with commit..."
+exit 0

@@ -1,24 +1,55 @@
 {
   "name": "cs2-grid-game",
   "version": "1.0.0",
-  "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "prepare": "husky"
   },
   "keywords": [
     "cs2",
     "game",
     "slot",
-    "grid"
+    "grid",
+    "next.js",
+    "supabase",
+    "typescript"
   ],
   "author": "",
   "license": "ISC",
-  "description": "CS2-themed 7x7 grid slot game with cluster pays",
+  "description": "CS2-themed 7x7 grid slot game with frontend-backend separation using Next.js and Supabase",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.53.0",
+    "@tailwindcss/postcss": "^4.1.11",
+    "@types/node": "^24.1.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "autoprefixer": "^10.4.21",
+    "framer-motion": "^12.23.12",
+    "next": "^15.4.5",
+    "postcss": "^8.5.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.9.2",
+    "zustand": "^5.0.7"
+  },
   "devDependencies": {
-    "vite": "^5.4.19"
+    "@playwright/test": "^1.54.2",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "eslint": "^9.32.0",
+    "eslint-config-next": "^15.4.5",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.4",
+    "prettier": "^3.6.2"
   },
   "repository": {
     "type": "git",
